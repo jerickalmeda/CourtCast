@@ -61,6 +61,7 @@ const state = {
   running: false,
   shotClockAutoOff: false,
   editMode: false,
+  snapEnabled: true,
   modalOpen: false,
   muted: false,
   possession: 'off',
@@ -93,6 +94,8 @@ const state = {
 };
 
 const FINAL_24S_MS = 24000;
+const SNAP_GRID_DRAG_PX = 16;
+const SNAP_GRID_RESIZE_PX = 32;
 
 if (isDisplayMode) {
   document.body.classList.add('display-only');
@@ -549,6 +552,7 @@ function applyStateSnapshot(snapshot) {
   state.awayTimeouts = Number.isFinite(snapshot.awayTimeouts) ? snapshot.awayTimeouts : state.awayTimeouts;
   state.period = Number.isFinite(snapshot.period) ? snapshot.period : state.period;
   state.muted = typeof snapshot.muted === 'boolean' ? snapshot.muted : state.muted;
+  state.snapEnabled = typeof snapshot.snapEnabled === 'boolean' ? snapshot.snapEnabled : state.snapEnabled;
   state.possession = typeof snapshot.possession === 'string' ? snapshot.possession : state.possession;
   state.shotClockAutoOff = typeof snapshot.shotClockAutoOff === 'boolean'
     ? snapshot.shotClockAutoOff
@@ -570,6 +574,7 @@ function applyStateSnapshot(snapshot) {
   renderLogos();
   renderGameLog();
   updateShotClockLabels();
+  renderSnapMode();
 
   const gameRemaining = Number.isFinite(snapshot.gameRemainingMs)
     ? snapshot.gameRemainingMs
@@ -617,6 +622,7 @@ function buildStateSnapshot() {
     awayTimeouts: state.awayTimeouts,
     period: state.period,
     muted: state.muted,
+    snapEnabled: state.snapEnabled,
     possession: state.possession,
     shotClockAutoOff: state.shotClockAutoOff,
     gameLog: state.gameLog.slice(0, 100),
@@ -847,6 +853,7 @@ function toggleModal() {
     document.getElementById('input-shot-offensive').value = c.shotClockOffensive;
     document.getElementById('input-team-timeouts').value = c.teamTimeouts;
     updateBackgroundInputs();
+    renderSnapMode();
   }
 }
 
@@ -1022,6 +1029,28 @@ const resizeState = {
   mode: 'box',
   targets: [],
 };
+
+function snapToGrid(value, gridSize) {
+  if (!state.snapEnabled || !Number.isFinite(gridSize) || gridSize <= 1) return value;
+  return Math.round(value / gridSize) * gridSize;
+}
+
+function renderSnapMode() {
+  const btn = document.getElementById('edit-snap-toggle');
+  if (!btn) return;
+
+  btn.textContent = state.snapEnabled ? 'Snap On (S)' : 'Snap Off (S)';
+  btn.classList.toggle('pill-inactive', !state.snapEnabled);
+}
+
+function toggleSnapMode() {
+  if (isDisplayMode) return;
+  state.snapEnabled = !state.snapEnabled;
+  renderSnapMode();
+  addLog(state.snapEnabled ? 'Edit snap enabled (16px move / 32px resize)' : 'Edit snap disabled');
+  persistRuntimeState();
+}
+
 let editSessionDirty = false;
 let editSessionHadCustomLayout = false;
 
@@ -1103,6 +1132,14 @@ function onDragStart(e) {
   dragState.startY = e.clientY;
   dragState.origLeft = parseInt(dragState.el.style.left) || 0;
   dragState.origTop = parseInt(dragState.el.style.top) || 0;
+  const scoreboard = document.getElementById('scoreboard');
+  const sbRect = scoreboard.getBoundingClientRect();
+  dragState.bounds = {
+    minLeft: 0,
+    minTop: 0,
+    maxLeft: Math.max(0, sbRect.width - dragState.el.offsetWidth),
+    maxTop: Math.max(0, sbRect.height - dragState.el.offsetHeight),
+  };
   dragState.el.classList.add('dragging');
 
   window.addEventListener('mousemove', onDragMove);
@@ -1172,8 +1209,13 @@ function onResizeStart(e) {
 
 function onResizeMove(e) {
   if (!resizeState.el) return;
-  const nextWidth = clamp(resizeState.startWidth + (e.clientX - resizeState.startX), 96, window.innerWidth);
-  const nextHeight = clamp(resizeState.startHeight + (e.clientY - resizeState.startY), 72, window.innerHeight);
+  let nextWidth = clamp(resizeState.startWidth + (e.clientX - resizeState.startX), 96, window.innerWidth);
+  let nextHeight = clamp(resizeState.startHeight + (e.clientY - resizeState.startY), 72, window.innerHeight);
+
+  if (state.snapEnabled) {
+    nextWidth = clamp(snapToGrid(nextWidth, SNAP_GRID_RESIZE_PX), 96, window.innerWidth);
+    nextHeight = clamp(snapToGrid(nextHeight, SNAP_GRID_RESIZE_PX), 72, window.innerHeight);
+  }
 
   if (resizeState.mode === 'content') {
     const ratioX = nextWidth / Math.max(1, resizeState.startWidth);
@@ -1216,8 +1258,21 @@ function onResizeEnd() {
 
 function onDragMove(e) {
   if (!dragState.el) return;
-  dragState.el.style.left = (dragState.origLeft + e.clientX - dragState.startX) + 'px';
-  dragState.el.style.top  = (dragState.origTop  + e.clientY - dragState.startY) + 'px';
+  let nextLeft = dragState.origLeft + e.clientX - dragState.startX;
+  let nextTop = dragState.origTop + e.clientY - dragState.startY;
+
+  if (state.snapEnabled) {
+    nextLeft = snapToGrid(nextLeft, SNAP_GRID_DRAG_PX);
+    nextTop = snapToGrid(nextTop, SNAP_GRID_DRAG_PX);
+  }
+
+  if (dragState.bounds) {
+    nextLeft = clamp(nextLeft, dragState.bounds.minLeft, dragState.bounds.maxLeft);
+    nextTop = clamp(nextTop, dragState.bounds.minTop, dragState.bounds.maxTop);
+  }
+
+  dragState.el.style.left = `${nextLeft}px`;
+  dragState.el.style.top = `${nextTop}px`;
   editSessionDirty = true;
 }
 
@@ -1225,6 +1280,7 @@ function onDragEnd() {
   if (!dragState.el) return;
   dragState.el.classList.remove('dragging');
   dragState.el = null;
+  dragState.bounds = null;
   window.removeEventListener('mousemove', onDragMove);
   window.removeEventListener('mouseup', onDragEnd);
   persistRuntimeState();
@@ -1489,6 +1545,9 @@ document.addEventListener('keydown', (e) => {
     case 'KeyB':
       toggleMute();
       break;
+    case 'KeyS':
+      toggleSnapMode();
+      break;
     case 'KeyE':
       toggleEditMode();
       break;
@@ -1736,6 +1795,7 @@ function init() {
   renderLogos();
   renderGameLog();
   updateShotClockLabels();
+  renderSnapMode();
   updateStatus('Press Space to Start');
   renderAppBackgroundVisual();
   bindScorePointerControls();
