@@ -23,6 +23,20 @@
     letter-spacing: 0.04em;
   }
 
+  .font-varsity-numeric {
+    font-family: 'Impact', 'Haettenschweiler', 'Arial Black', 'Franklin Gothic Heavy', 'Segoe UI Black', sans-serif;
+    letter-spacing: 0.02em;
+    line-height: 0.95;
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+
+  .font-varsity-clock {
+    letter-spacing: 0;
+    transform: scaleX(0.94);
+    transform-origin: center;
+    display: inline-block;
+  }
+
   .home-accent {
     color: var(--home-color);
   }
