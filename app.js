@@ -1142,17 +1142,40 @@ function onDragEnd() {
 
 function savePositions() {
   const scoreboard = document.getElementById('scoreboard');
+  const sbRect = scoreboard.getBoundingClientRect();
+  const sbWidth = Math.max(1, sbRect.width);
+  const sbHeight = Math.max(1, sbRect.height);
   const positions = {};
+
   scoreboard.querySelectorAll('.draggable[id]').forEach(el => {
     if (el.style.position === 'absolute') {
+      const r = el.getBoundingClientRect();
+      const leftPx = r.left - sbRect.left;
+      const topPx = r.top - sbRect.top;
+      const widthPx = r.width;
+      const heightPx = r.height;
+
       positions[el.id] = {
-        left: el.style.left,
-        top: el.style.top,
-        width: el.style.width,
-        height: el.style.height,
+        // v2: store relative values so layout can scale across different screen sizes.
+        leftPct: (leftPx / sbWidth) * 100,
+        topPct: (topPx / sbHeight) * 100,
+        widthPct: (widthPx / sbWidth) * 100,
+        heightPct: (heightPx / sbHeight) * 100,
+        // Keep px fallback for compatibility.
+        left: `${leftPx}px`,
+        top: `${topPx}px`,
+        width: `${widthPx}px`,
+        height: `${heightPx}px`,
       };
     }
   });
+
+  positions.__meta = {
+    version: 2,
+    scoreboardWidth: sbWidth,
+    scoreboardHeight: sbHeight,
+  };
+
   const fontSizes = {};
   document.querySelectorAll('.size-adjustable[id]').forEach(el => {
     if (el.style.fontSize) fontSizes[el.id] = el.style.fontSize;
@@ -1172,7 +1195,14 @@ function loadPositions() {
     if (!saved || Object.keys(saved).length === 0) return false;
 
     const requiredIds = getDraggableIds();
-    const isCompleteLayout = requiredIds.every((id) => saved[id] && saved[id].left && saved[id].top);
+    const isCompleteLayout = requiredIds.every((id) => {
+      const pos = saved[id];
+      if (!pos) return false;
+      const hasRelative = Number.isFinite(pos.leftPct) && Number.isFinite(pos.topPct);
+      const hasPixels = typeof pos.left === 'string' && typeof pos.top === 'string';
+      return hasRelative || hasPixels;
+    });
+
     if (!isCompleteLayout) {
       localStorage.removeItem(STORAGE_KEYS.positions);
       localStorage.removeItem(STORAGE_KEYS.fontSizes);
@@ -1180,17 +1210,65 @@ function loadPositions() {
     }
 
     const scoreboard = document.getElementById('scoreboard');
+    const sbRect = scoreboard.getBoundingClientRect();
+    const sbWidth = Math.max(1, sbRect.width);
+    const sbHeight = Math.max(1, sbRect.height);
+
+    const meta = saved.__meta && Number.isFinite(saved.__meta.scoreboardWidth) && Number.isFinite(saved.__meta.scoreboardHeight)
+      ? saved.__meta
+      : null;
+
+    // Project saved layout onto the current viewport while preserving original aspect.
+    // This prevents noticeable drift between control and display surfaces with different aspect ratios.
+    const baseWidth = meta ? Math.max(1, meta.scoreboardWidth) : sbWidth;
+    const baseHeight = meta ? Math.max(1, meta.scoreboardHeight) : sbHeight;
+    const layoutScale = Math.min(sbWidth / baseWidth, sbHeight / baseHeight);
+    const offsetX = meta ? (sbWidth - baseWidth * layoutScale) / 2 : 0;
+    const offsetY = meta ? (sbHeight - baseHeight * layoutScale) / 2 : 0;
+
+    const parsePx = (value) => {
+      if (typeof value !== 'string') return NaN;
+      const n = parseFloat(value);
+      return Number.isFinite(n) ? n : NaN;
+    };
+
     scoreboard.style.position = 'relative';
     scoreboard.classList.remove('grid', 'grid-cols-3', 'gap-4');
 
     Object.entries(saved).forEach(([id, pos]) => {
       const el = document.getElementById(id);
-      if (!el || !pos.left) return;
+      if (!el || !pos) return;
+
+      let left = '';
+      let top = '';
+      let width = '';
+      let height = '';
+
+      const hasRelative = Number.isFinite(pos.leftPct) && Number.isFinite(pos.topPct);
+      const leftPx = Number.isFinite(parsePx(pos.left))
+        ? parsePx(pos.left)
+        : (hasRelative ? (pos.leftPct / 100) * baseWidth : NaN);
+      const topPx = Number.isFinite(parsePx(pos.top))
+        ? parsePx(pos.top)
+        : (hasRelative ? (pos.topPct / 100) * baseHeight : NaN);
+      const widthPx = Number.isFinite(parsePx(pos.width))
+        ? parsePx(pos.width)
+        : (Number.isFinite(pos.widthPct) ? (pos.widthPct / 100) * baseWidth : NaN);
+      const heightPx = Number.isFinite(parsePx(pos.height))
+        ? parsePx(pos.height)
+        : (Number.isFinite(pos.heightPct) ? (pos.heightPct / 100) * baseHeight : NaN);
+
+      if (Number.isFinite(leftPx)) left = `${leftPx * layoutScale + offsetX}px`;
+      if (Number.isFinite(topPx)) top = `${topPx * layoutScale + offsetY}px`;
+      if (Number.isFinite(widthPx)) width = `${widthPx * layoutScale}px`;
+      if (Number.isFinite(heightPx)) height = `${heightPx * layoutScale}px`;
+
+      if (!left || !top) return;
       el.style.position = 'absolute';
-      el.style.left = pos.left;
-      el.style.top = pos.top;
-      if (pos.width) el.style.width = pos.width;
-      if (pos.height) el.style.height = pos.height;
+      el.style.left = left;
+      el.style.top = top;
+      if (width) el.style.width = width;
+      if (height) el.style.height = height;
       el.style.margin = '0';
       el.style.zIndex = '10';
     });
@@ -1211,6 +1289,18 @@ function loadPositions() {
 
   return true;
 }
+
+let layoutResizeRaf = null;
+
+window.addEventListener('resize', () => {
+  if (state.editMode) return;
+  if (layoutResizeRaf) cancelAnimationFrame(layoutResizeRaf);
+
+  layoutResizeRaf = requestAnimationFrame(() => {
+    layoutResizeRaf = null;
+    loadPositions();
+  });
+});
 
 function resetLayout() {
   try { localStorage.removeItem(STORAGE_KEYS.positions); } catch (_) {}
