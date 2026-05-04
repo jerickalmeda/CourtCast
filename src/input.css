@@ -120,8 +120,8 @@
     width: clamp(7.75rem, 12vw, 13rem);
     height: clamp(7.75rem, 12vw, 13rem);
     border-radius: 1.15rem;
-    border: 1px solid var(--surface-border);
-    background: rgba(255, 255, 255, 0.04);
+    border: 0;
+    background: transparent;
     overflow: hidden;
     display: flex;
     align-items: center;
@@ -138,6 +138,7 @@
     width: 3.5rem;
     height: 3.5rem;
     border-radius: 0.9rem;
+    border: 0;
   }
 
   .possession-arrow {
@@ -211,6 +212,10 @@
 
   .edit-mode .size-adjustable {
     cursor: ns-resize;
+  }
+
+  .edit-mode #scoreboard {
+    position: relative !important;
   }
 
   /* Edit mode drag handles */

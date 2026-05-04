@@ -924,26 +924,42 @@ function confirmAutoAdvance() {
 
 const dragState = { el: null, startX: 0, startY: 0, origLeft: 0, origTop: 0 };
 const resizeState = { el: null, startX: 0, startY: 0, startWidth: 0, startHeight: 0 };
+let editSessionDirty = false;
+let editSessionHadCustomLayout = false;
 
 function toggleEditMode() {
   if (isDisplayMode) return;
-  state.editMode = !state.editMode;
-  document.body.classList.toggle('edit-mode', state.editMode);
-  document.getElementById('edit-banner').classList.toggle('hidden', !state.editMode);
-
   const scoreboard = document.getElementById('scoreboard');
 
+  state.editMode = !state.editMode;
+
   if (state.editMode) {
-    // Re-anchor every draggable from its current visual position.
-    // This prevents stale absolute snapshots from stacking elements.
+    editSessionDirty = false;
+    editSessionHadCustomLayout = !scoreboard.classList.contains('grid');
+
+    // Ensure children anchor to the scoreboard before any edit-mode absolute rules apply.
+    scoreboard.style.position = 'relative';
+
+    // Capture all visual bounds first, then apply absolute positioning.
+    // This avoids reflow-induced stacking while iterating.
     const sbRect = scoreboard.getBoundingClientRect();
-    scoreboard.querySelectorAll('.draggable').forEach(el => {
+    const anchors = Array.from(scoreboard.querySelectorAll('.draggable')).map((el) => {
       const r = el.getBoundingClientRect();
+      return {
+        el,
+        left: (r.left - sbRect.left) + 'px',
+        top: (r.top - sbRect.top) + 'px',
+        width: r.width + 'px',
+        height: r.height + 'px',
+      };
+    });
+
+    anchors.forEach(({ el, left, top, width, height }) => {
       el.style.position = 'absolute';
-      el.style.left = (r.left - sbRect.left) + 'px';
-      el.style.top = (r.top - sbRect.top) + 'px';
-      el.style.width = r.width + 'px';
-      el.style.height = r.height + 'px';
+      el.style.left = left;
+      el.style.top = top;
+      el.style.width = width;
+      el.style.height = height;
       el.style.margin = '0';
       el.style.zIndex = '10';
       ensureResizeHandle(el);
@@ -951,13 +967,33 @@ function toggleEditMode() {
     });
 
     // Switch container to a free-form canvas
-    scoreboard.style.position = 'relative';
     scoreboard.classList.remove('grid', 'grid-cols-3', 'gap-4');
+    document.body.classList.add('edit-mode');
+    document.getElementById('edit-banner').classList.remove('hidden');
   } else {
     scoreboard.querySelectorAll('.draggable').forEach(el => {
       el.removeEventListener('mousedown', onDragStart);
     });
-    savePositions();
+
+    if (editSessionDirty) {
+      savePositions();
+    } else if (!editSessionHadCustomLayout) {
+      // If no custom layout existed and nothing changed, return to the default grid.
+      scoreboard.querySelectorAll('.draggable').forEach((el) => {
+        el.style.position = '';
+        el.style.left = '';
+        el.style.top = '';
+        el.style.width = '';
+        el.style.height = '';
+        el.style.margin = '';
+        el.style.zIndex = '';
+      });
+      scoreboard.style.position = '';
+      scoreboard.classList.add('grid', 'grid-cols-3', 'gap-4');
+    }
+
+    document.body.classList.remove('edit-mode');
+    document.getElementById('edit-banner').classList.add('hidden');
   }
 }
 
@@ -1013,6 +1049,7 @@ function onResizeMove(e) {
   const nextHeight = clamp(resizeState.startHeight + (e.clientY - resizeState.startY), 72, window.innerHeight);
   resizeState.el.style.width = `${nextWidth}px`;
   resizeState.el.style.height = `${nextHeight}px`;
+  editSessionDirty = true;
 }
 
 function onResizeEnd() {
@@ -1028,6 +1065,7 @@ function onDragMove(e) {
   if (!dragState.el) return;
   dragState.el.style.left = (dragState.origLeft + e.clientX - dragState.startX) + 'px';
   dragState.el.style.top  = (dragState.origTop  + e.clientY - dragState.startY) + 'px';
+  editSessionDirty = true;
 }
 
 function onDragEnd() {
@@ -1151,6 +1189,7 @@ function handleEditableResize(e) {
   const current = parseFloat(window.getComputedStyle(target).fontSize);
   const next = clamp(current + (e.deltaY < 0 ? 3 : -3), 20, 240);
   target.style.fontSize = `${next}px`;
+  editSessionDirty = true;
 }
 
 // ─── HOTKEYS ──────────────────────────────────────────────────────────────────
