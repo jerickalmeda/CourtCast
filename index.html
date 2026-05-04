@@ -91,16 +91,16 @@
       <div id="possession-display" class="draggable text-center">
         <div class="text-xs font-bold uppercase tracking-[0.3em] control-muted mb-1">Possession</div>
         <div class="flex items-center justify-center gap-8 text-4xl font-black">
-          <button id="home-possession-arrow"
+          <button id="possession-arrow"
                   type="button"
                   class="possession-arrow"
-                  onclick="setPossession('home')"
-              aria-label="Set home possession">&#11013;</button>
-          <button id="away-possession-arrow"
-                  type="button"
-                  class="possession-arrow"
-                  onclick="setPossession('away')"
-              aria-label="Set away possession">&#10145;</button>
+                  onclick="togglePossessionDirection()"
+                  aria-label="Toggle possession direction"
+                  aria-pressed="true">
+            <svg class="possession-arrow-icon" viewBox="0 0 100 60" aria-hidden="true" focusable="false">
+              <path d="M0 15H55V0L100 30L55 60V45H0Z" />
+            </svg>
+          </button>
         </div>
       </div>
 

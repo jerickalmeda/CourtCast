@@ -131,13 +131,33 @@
     appearance: none;
     border: 0;
     background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
     padding: 0;
-    font-size: 2.35rem;
-    font-weight: 900;
-    color: rgba(239, 68, 68, 0.42);
+    min-width: 0;
+    min-height: 0;
+    color: rgba(239, 68, 68, 0.54);
     cursor: pointer;
-    line-height: 1;
-    transition: color 0.16s ease, transform 0.16s ease, text-shadow 0.16s ease;
+    line-height: 0;
+    transition: color 0.16s ease, transform 0.16s ease, filter 0.16s ease;
+  }
+
+  .possession-arrow-icon {
+    width: clamp(4.8rem, 7.2vw, 7.2rem);
+    height: auto;
+    display: block;
+    fill: currentColor;
+    transition: transform 0.16s ease;
+  }
+
+  .possession-arrow-left .possession-arrow-icon {
+    transform: scaleX(-1);
+  }
+
+  .possession-arrow:visited,
+  .possession-arrow:active {
+    background: transparent !important;
+    background-color: transparent !important;
   }
 
   .possession-arrow:hover {
@@ -153,8 +173,7 @@
 
   .possession-arrow-active {
     color: #ef4444;
-    text-shadow: 0 0 18px rgba(239, 68, 68, 0.55);
-    animation: possession-pulse 1.1s ease-in-out infinite;
+    filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.45));
   }
 
   .score-flash {

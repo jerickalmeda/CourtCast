@@ -382,20 +382,26 @@ function renderLogo(team) {
 }
 
 function renderPossession() {
-  const homeArrow = document.getElementById('home-possession-arrow');
-  const awayArrow = document.getElementById('away-possession-arrow');
-  if (!homeArrow || !awayArrow) return;
+  const arrow = document.getElementById('possession-arrow');
+  if (!arrow) return;
 
-  homeArrow.classList.toggle('possession-arrow-active', state.possession === 'home');
-  awayArrow.classList.toggle('possession-arrow-active', state.possession === 'away');
-
-  homeArrow.setAttribute('aria-pressed', state.possession === 'home' ? 'true' : 'false');
-  awayArrow.setAttribute('aria-pressed', state.possession === 'away' ? 'true' : 'false');
+  const side = state.possession === 'away' ? 'away' : 'home';
+  arrow.classList.add('possession-arrow-active');
+  arrow.classList.toggle('possession-arrow-left', side === 'home');
+  arrow.setAttribute('aria-pressed', 'true');
+  arrow.setAttribute('aria-label', side === 'home' ? 'Home possession. Click to switch to away.' : 'Away possession. Click to switch to home.');
 }
 
 function setPossession(side) {
-  const next = state.possession === side ? 'off' : side;
-  state.possession = next;
+  if (side !== 'home' && side !== 'away') return;
+  state.possession = side;
+  renderPossession();
+  addLog(`Possession ${state.possession}`);
+  persistRuntimeState();
+}
+
+function togglePossessionDirection() {
+  state.possession = state.possession === 'home' ? 'away' : 'home';
   renderPossession();
   addLog(`Possession ${state.possession}`);
   persistRuntimeState();
@@ -863,16 +869,7 @@ function toggleMute() {
 }
 
 function togglePossession() {
-  if (state.possession === 'off') {
-    state.possession = 'home';
-  } else if (state.possession === 'home') {
-    state.possession = 'away';
-  } else {
-    state.possession = 'off';
-  }
-  renderPossession();
-  addLog(`Possession ${state.possession}`);
-  persistRuntimeState();
+  togglePossessionDirection();
 }
 
 // ─── VISIBILITY TOGGLES ───────────────────────────────────────────────────────
