@@ -59,6 +59,7 @@ const state = {
   awayTimeouts: 5,
   period: 1,
   running: false,
+  shotClockAutoOff: false,
   editMode: false,
   modalOpen: false,
   muted: false,
@@ -90,6 +91,8 @@ const state = {
   },
   hydrated: false,
 };
+
+const FINAL_24S_MS = 24000;
 
 if (isDisplayMode) {
   document.body.classList.add('display-only');
@@ -284,8 +287,49 @@ function renderGameClock(ms) {
   }
 }
 
-function renderShotClock(ms) {
+function renderShotClockOff() {
   const el = document.getElementById('shot-clock');
+  // Standard endgame behavior: shot clock goes dark (no label text).
+  el.textContent = '';
+  el.style.opacity = '0';
+}
+
+function shouldAutoTurnOffShotClock(gameClockMs = gameTimer.getRemaining()) {
+  if (!Number.isFinite(gameClockMs)) return false;
+  // Broadcast mode preference: shot clock can be turned off in the final 24.0s window
+  // when possession changes/reset events occur.
+  return gameClockMs > 0 && gameClockMs <= FINAL_24S_MS;
+}
+
+function syncShotClockEndgameRule() {
+  if (state.shotClockAutoOff) {
+    shotTimer.pause();
+    renderShotClockOff();
+    return true;
+  }
+  return false;
+}
+
+function maybeTurnOffShotClockForLatePossessionChange() {
+  if (!shouldAutoTurnOffShotClock(gameTimer.getRemaining())) return false;
+  if (!state.shotClockAutoOff && !isDisplayMode) {
+    addLog('Shot clock turned off (possession change in final 24.0 seconds)');
+  }
+  state.shotClockAutoOff = true;
+  shotTimer.pause();
+  renderShotClockOff();
+  updateStatus('Shot clock is off after possession change in final 24.0 seconds');
+  return true;
+}
+
+function renderShotClock(ms) {
+  if (state.shotClockAutoOff) {
+    renderShotClockOff();
+    return;
+  }
+
+  const el = document.getElementById('shot-clock');
+  el.style.opacity = '1';
   const totalSec = Math.ceil(ms / 1000);
 
   if (ms <= 0) {
@@ -397,6 +441,7 @@ function setPossession(side) {
   state.possession = side;
   renderPossession();
   addLog(`Possession ${state.possession}`);
+  maybeTurnOffShotClockForLatePossessionChange();
   persistRuntimeState();
 }
 
@@ -404,6 +449,7 @@ function togglePossessionDirection() {
   state.possession = state.possession === 'home' ? 'away' : 'home';
   renderPossession();
   addLog(`Possession ${state.possession}`);
+  maybeTurnOffShotClockForLatePossessionChange();
   persistRuntimeState();
 }
 
@@ -504,7 +550,11 @@ function applyStateSnapshot(snapshot) {
   state.period = Number.isFinite(snapshot.period) ? snapshot.period : state.period;
   state.muted = typeof snapshot.muted === 'boolean' ? snapshot.muted : state.muted;
   state.possession = typeof snapshot.possession === 'string' ? snapshot.possession : state.possession;
+  state.shotClockAutoOff = typeof snapshot.shotClockAutoOff === 'boolean'
+    ? snapshot.shotClockAutoOff
+    : state.shotClockAutoOff;
   state.gameLog = Array.isArray(snapshot.gameLog) ? snapshot.gameLog.slice(0, 100) : state.gameLog;
+  state.awaitingAdvance = typeof snapshot.awaitingAdvance === 'boolean' ? snapshot.awaitingAdvance : state.awaitingAdvance;
 
   applyTheme(state.theme in THEMES ? state.theme : 'classic-dark');
   if (state.theme === 'custom') {
@@ -530,12 +580,23 @@ function applyStateSnapshot(snapshot) {
 
   gameTimer.reset(Math.max(0, gameRemaining));
   shotTimer.reset(Math.max(0, shotRemaining));
+  syncShotClockEndgameRule();
 
-  if (snapshot.running) {
+  if (state.awaitingAdvance) {
+    showAutoAdvanceOverlay(false);
+  } else {
+    hideAutoAdvanceOverlay(false);
+  }
+
+  if (snapshot.running && !state.awaitingAdvance) {
     state.running = true;
     gameTimer.start();
-    shotTimer.start();
-    updateStatus('Clock running');
+    if (!syncShotClockEndgameRule()) {
+      shotTimer.start();
+      updateStatus('Clock running');
+    } else {
+      updateStatus('Clock running - Shot clock off');
+    }
   } else {
     state.running = false;
     updateStatus(snapshot.statusText || 'Press Space to Start');
@@ -557,7 +618,9 @@ function buildStateSnapshot() {
     period: state.period,
     muted: state.muted,
     possession: state.possession,
+    shotClockAutoOff: state.shotClockAutoOff,
     gameLog: state.gameLog.slice(0, 100),
+    awaitingAdvance: state.awaitingAdvance,
     running: state.running,
     gameRemainingMs: gameTimer.getRemaining(),
     shotRemainingMs: shotTimer.getRemaining(),
@@ -634,9 +697,13 @@ function masterToggle() {
   } else {
     if (gameTimer.getRemaining() <= 0) return;
     gameTimer.start();
-    shotTimer.start();
+    if (!syncShotClockEndgameRule()) {
+      shotTimer.start();
+      updateStatus('Clock running');
+    } else {
+      updateStatus('Clock running - Shot clock off');
+    }
     state.running = true;
-    updateStatus('Clock running');
     persistRuntimeState();
   }
 }
@@ -677,17 +744,36 @@ function adjustTimeouts(team, delta) {
 }
 
 function resetShotClock(mode) {
+  const targetShotMs = mode === 'offensive'
+    ? state.config.shotClockOffensive * 1000
+    : state.config.shotClockFull * 1000;
+  const shouldStayOff = shouldAutoTurnOffShotClock(gameTimer.getRemaining());
+
+  if (shouldStayOff) {
+    if (!state.shotClockAutoOff && !isDisplayMode) {
+      addLog('Shot clock turned off (reset in final 24.0 seconds)');
+    }
+    state.shotClockAutoOff = true;
+    shotTimer.pause();
+    renderShotClockOff();
+    updateStatus('Shot clock is off in final 24.0 seconds');
+    persistRuntimeState();
+    return;
+  }
+
+  state.shotClockAutoOff = false;
+
   const shouldResumeShot = state.running;
 
   if (mode === 'offensive') {
-    shotTimer.reset(state.config.shotClockOffensive * 1000);
+    shotTimer.reset(targetShotMs);
     if (shouldResumeShot) shotTimer.start();
     addLog(`Shot clock reset to ${state.config.shotClockOffensive}s`);
     persistRuntimeState();
     return;
   }
 
-  shotTimer.reset(state.config.shotClockFull * 1000);
+  shotTimer.reset(targetShotMs);
   if (shouldResumeShot) shotTimer.start();
   addLog(`Shot clock reset to ${state.config.shotClockFull}s`);
   persistRuntimeState();
@@ -704,10 +790,12 @@ function advancePeriod() {
   gameTimer.pause();
   shotTimer.pause();
   state.running = false;
+  state.shotClockAutoOff = false;
   state.period++;
   document.getElementById('period-number').textContent = state.period;
   gameTimer.reset(state.config.periodDuration * 60 * 1000);
   shotTimer.reset(state.config.shotClockFull * 1000);
+  renderShotClock(shotTimer.getRemaining());
   hideAutoAdvanceOverlay();
   addLog(`Start of ${getPeriodLabel()} ${state.period}`);
   updateStatus(`${getPeriodLabel()} ${state.period} — Press Space to start`);
@@ -718,6 +806,7 @@ function fullReset() {
   gameTimer.pause();
   shotTimer.pause();
   state.running = false;
+  state.shotClockAutoOff = false;
   hideAutoAdvanceOverlay();
   state.homeScore = 0;
   state.awayScore = 0;
@@ -731,6 +820,7 @@ function fullReset() {
   document.getElementById('period-number').textContent = 1;
   gameTimer.reset(state.config.periodDuration * 60 * 1000);
   shotTimer.reset(state.config.shotClockFull * 1000);
+  renderShotClock(shotTimer.getRemaining());
   renderScores();
   renderPossession();
   renderGameLog();
@@ -895,7 +985,7 @@ function toggleElementGroup(ids, btnId) {
 
 // ─── AUTO ADVANCE OVERLAY ─────────────────────────────────────────────────────
 
-function showAutoAdvanceOverlay() {
+function showAutoAdvanceOverlay(shouldPersist = true) {
   state.awaitingAdvance = true;
   const overlay = document.getElementById('auto-advance-overlay');
   overlay.classList.remove('hidden');
@@ -904,15 +994,15 @@ function showAutoAdvanceOverlay() {
   document.getElementById('auto-advance-subtitle').textContent = `Press Space or Enter to start ${getPeriodLabel()} ${state.period + 1}.`;
   document.getElementById('auto-advance-summary').textContent = `${state.config.homeName.toUpperCase()} ${state.homeScore} - ${state.awayScore} ${state.config.awayName.toUpperCase()}`;
   updateStatus(`End of ${getPeriodLabel()} ${state.period}`);
-  persistRuntimeState();
+  if (shouldPersist) persistRuntimeState();
 }
 
-function hideAutoAdvanceOverlay() {
+function hideAutoAdvanceOverlay(shouldPersist = true) {
   state.awaitingAdvance = false;
   const overlay = document.getElementById('auto-advance-overlay');
   overlay.classList.add('hidden');
   overlay.classList.remove('flex');
-  persistRuntimeState();
+  if (shouldPersist) persistRuntimeState();
 }
 
 function confirmAutoAdvance() {
@@ -1348,7 +1438,6 @@ function handleEditableResize(e) {
 // ─── HOTKEYS ──────────────────────────────────────────────────────────────────
 
 document.addEventListener('keydown', (e) => {
-  if (isDisplayMode) return;
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
   if (state.awaitingAdvance && (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyN')) {
@@ -1356,6 +1445,8 @@ document.addEventListener('keydown', (e) => {
     confirmAutoAdvance();
     return;
   }
+
+  if (isDisplayMode) return;
 
   switch (e.code) {
     case 'Space':
