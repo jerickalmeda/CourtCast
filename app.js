@@ -674,6 +674,7 @@ function subscribeCrossWindowSync() {
 }
 
 function updateStatus(msg) {
+  if (isDisplayMode) return;
   document.getElementById('status-text').textContent = msg;
 }
 
@@ -1795,6 +1796,12 @@ function init() {
   renderLogos();
   renderGameLog();
   updateShotClockLabels();
+  if (isDisplayMode) {
+    const statusDisplay = document.getElementById('status-display');
+    const statusText = document.getElementById('status-text');
+    if (statusText) statusText.textContent = '';
+    if (statusDisplay) statusDisplay.classList.add('hidden');
+  }
   renderSnapMode();
   updateStatus('Press Space to Start');
   renderAppBackgroundVisual();
