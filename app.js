@@ -923,7 +923,15 @@ function confirmAutoAdvance() {
 // ─── DRAG & DROP (Edit Mode) ──────────────────────────────────────────────────
 
 const dragState = { el: null, startX: 0, startY: 0, origLeft: 0, origTop: 0 };
-const resizeState = { el: null, startX: 0, startY: 0, startWidth: 0, startHeight: 0 };
+const resizeState = {
+  el: null,
+  startX: 0,
+  startY: 0,
+  startWidth: 0,
+  startHeight: 0,
+  mode: 'box',
+  targets: [],
+};
 let editSessionDirty = false;
 let editSessionHadCustomLayout = false;
 
@@ -1037,6 +1045,35 @@ function onResizeStart(e) {
   resizeState.startY = e.clientY;
   resizeState.startWidth = resizeState.el.offsetWidth;
   resizeState.startHeight = resizeState.el.offsetHeight;
+  resizeState.targets = [];
+
+  resizeState.el.querySelectorAll('.size-adjustable').forEach((node) => {
+    resizeState.targets.push({
+      type: 'font',
+      node,
+      start: parseFloat(window.getComputedStyle(node).fontSize) || 16,
+    });
+  });
+
+  resizeState.el.querySelectorAll('.team-logo-frame').forEach((node) => {
+    resizeState.targets.push({
+      type: 'box',
+      node,
+      width: node.offsetWidth,
+      height: node.offsetHeight,
+    });
+  });
+
+  resizeState.el.querySelectorAll('.possession-arrow-icon').forEach((node) => {
+    const w = node.getBoundingClientRect().width || 64;
+    resizeState.targets.push({
+      type: 'icon',
+      node,
+      width: w,
+    });
+  });
+
+  resizeState.mode = resizeState.targets.length > 0 ? 'content' : 'box';
   resizeState.el.classList.add('dragging');
 
   window.addEventListener('mousemove', onResizeMove);
@@ -1047,8 +1084,32 @@ function onResizeMove(e) {
   if (!resizeState.el) return;
   const nextWidth = clamp(resizeState.startWidth + (e.clientX - resizeState.startX), 96, window.innerWidth);
   const nextHeight = clamp(resizeState.startHeight + (e.clientY - resizeState.startY), 72, window.innerHeight);
-  resizeState.el.style.width = `${nextWidth}px`;
-  resizeState.el.style.height = `${nextHeight}px`;
+
+  if (resizeState.mode === 'content') {
+    const ratioX = nextWidth / Math.max(1, resizeState.startWidth);
+    const ratioY = nextHeight / Math.max(1, resizeState.startHeight);
+    const scale = clamp((ratioX + ratioY) / 2, 0.35, 4);
+
+    resizeState.targets.forEach((target) => {
+      if (target.type === 'font') {
+        target.node.style.fontSize = `${Math.round(target.start * scale * 100) / 100}px`;
+      } else if (target.type === 'box') {
+        target.node.style.width = `${Math.round(target.width * scale)}px`;
+        target.node.style.height = `${Math.round(target.height * scale)}px`;
+      } else if (target.type === 'icon') {
+        target.node.style.width = `${Math.round(target.width * scale)}px`;
+        target.node.style.height = 'auto';
+      }
+    });
+
+    // Keep draggable bounds tight to visible content instead of growing empty canvas space.
+    resizeState.el.style.width = 'fit-content';
+    resizeState.el.style.height = 'fit-content';
+  } else {
+    resizeState.el.style.width = `${nextWidth}px`;
+    resizeState.el.style.height = `${nextHeight}px`;
+  }
+
   editSessionDirty = true;
 }
 
@@ -1056,6 +1117,8 @@ function onResizeEnd() {
   if (!resizeState.el) return;
   resizeState.el.classList.remove('dragging');
   resizeState.el = null;
+  resizeState.targets = [];
+  resizeState.mode = 'box';
   window.removeEventListener('mousemove', onResizeMove);
   window.removeEventListener('mouseup', onResizeEnd);
   persistRuntimeState();
