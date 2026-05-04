@@ -127,8 +127,13 @@
   }
 
   .possession-arrow {
+    -webkit-appearance: none;
+    appearance: none;
     border: 0;
-    background: transparent;
+    background: transparent !important;
+    padding: 0;
+    font-size: 2.35rem;
+    font-weight: 900;
     color: rgba(239, 68, 68, 0.42);
     cursor: pointer;
     line-height: 1;
