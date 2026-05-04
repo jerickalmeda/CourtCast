@@ -1,0 +1,12 @@
+{
+  "name": "courtcast",
+  "version": "1.0.0",
+  "description": "100% offline basketball scoreboard",
+  "scripts": {
+    "build": "tailwindcss -i ./src/input.css -o ./style.css --minify",
+    "dev": "tailwindcss -i ./src/input.css -o ./style.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0"
+  }
+}

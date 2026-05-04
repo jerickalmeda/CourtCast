@@ -1,0 +1,281 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --app-bg: #0a0a0a;
+  --bg-top: #16161b;
+  --bg-bottom: #050505;
+  --bg-glow: rgba(255, 255, 255, 0.06);
+  --app-fg: #f5f5f5;
+  --surface: rgba(23, 23, 23, 0.92);
+  --surface-border: rgba(82, 82, 91, 0.7);
+  --surface-muted: rgba(38, 38, 38, 0.9);
+  --muted-text: #9ca3af;
+  --panel-glow: rgba(255, 255, 255, 0.08);
+  --home-color: #3b82f6;
+  --away-color: #ef4444;
+}
+
+@layer utilities {
+  .font-digital {
+    font-family: 'Courier New', 'Lucida Console', 'Consolas', monospace;
+    letter-spacing: 0.04em;
+  }
+
+  .home-accent {
+    color: var(--home-color);
+  }
+
+  .away-accent {
+    color: var(--away-color);
+  }
+
+  .home-score-size,
+  .away-score-size {
+    font-size: clamp(5rem, 14vw, 10rem);
+  }
+
+  .game-clock-size {
+    font-size: clamp(3.5rem, 10vw, 7rem);
+  }
+
+  .shot-clock-size {
+    font-size: clamp(2.5rem, 7vw, 5rem);
+  }
+}
+
+@layer components {
+  .display-only #operator-toolbar,
+  .display-only #modal,
+  .display-only #edit-banner {
+    display: none !important;
+  }
+
+  .app-shell {
+    background:
+      radial-gradient(circle at top, var(--bg-glow), transparent 28%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 20%),
+      linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+    color: var(--app-fg);
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  .app-shell.background-image-mode {
+    background-size: cover !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+  }
+
+  .app-shell.background-transparent-mode {
+    background: transparent !important;
+  }
+
+  /* Transparent mode can sit over bright pages; force readable contrast for clock values. */
+  .app-shell.background-transparent-mode #period-number,
+  .app-shell.background-transparent-mode #game-clock {
+    color: #0f172a !important;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+  }
+
+  .app-shell.background-transparent-mode #period-label,
+  .app-shell.background-transparent-mode #status-text,
+  .app-shell.background-transparent-mode #shot-clock-wrap > div:first-child,
+  .app-shell.background-transparent-mode #game-clock-wrap > div:first-child,
+  .app-shell.background-transparent-mode #possession-display > div:first-child {
+    color: #334155 !important;
+  }
+
+  .control-surface {
+    background: var(--surface) !important;
+    border-color: var(--surface-border) !important;
+    color: var(--app-fg) !important;
+    box-shadow: 0 20px 45px var(--panel-glow);
+  }
+
+  .control-muted {
+    color: var(--muted-text) !important;
+  }
+
+  .theme-chip-active {
+    border-color: var(--app-fg) !important;
+    box-shadow: 0 0 0 1px var(--app-fg) inset;
+  }
+
+  .team-logo-frame {
+    width: clamp(7.75rem, 12vw, 13rem);
+    height: clamp(7.75rem, 12vw, 13rem);
+    border-radius: 1.15rem;
+    border: 1px solid var(--surface-border);
+    background: rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .team-logo-frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .team-logo-frame-sm {
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 0.9rem;
+  }
+
+  .possession-arrow {
+    border: 0;
+    background: transparent;
+    color: rgba(239, 68, 68, 0.42);
+    cursor: pointer;
+    line-height: 1;
+    transition: color 0.16s ease, transform 0.16s ease, text-shadow 0.16s ease;
+  }
+
+  .possession-arrow:hover {
+    color: rgba(248, 113, 113, 0.9);
+    transform: scale(1.06);
+  }
+
+  .possession-arrow:focus-visible {
+    outline: 2px solid rgba(248, 113, 113, 0.9);
+    outline-offset: 5px;
+    border-radius: 0.4rem;
+  }
+
+  .possession-arrow-active {
+    color: #ef4444;
+    text-shadow: 0 0 18px rgba(239, 68, 68, 0.55);
+    animation: possession-pulse 1.1s ease-in-out infinite;
+  }
+
+  .score-flash {
+    animation: score-flash 420ms ease-out;
+  }
+
+  .auto-advance-card {
+    background: rgba(10, 10, 10, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.45);
+  }
+
+  .event-log {
+    max-height: 14rem;
+    overflow-y: auto;
+  }
+
+  .event-log-entry + .event-log-entry {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .edit-mode .size-adjustable {
+    cursor: ns-resize;
+  }
+
+  /* Edit mode drag handles */
+  .edit-mode .draggable {
+    cursor: move;
+    outline: 2px dashed #fbbf24;
+    outline-offset: 6px;
+    position: absolute;
+  }
+  .edit-mode .draggable:hover {
+    outline-color: #f59e0b;
+    background-color: rgba(251, 191, 36, 0.04);
+  }
+  .edit-mode .draggable.dragging {
+    outline-color: #22d3ee;
+    z-index: 20;
+  }
+
+  .resize-handle {
+    display: none;
+    position: absolute;
+    right: -0.55rem;
+    bottom: -0.55rem;
+    width: 1.05rem;
+    height: 1.05rem;
+    border-radius: 9999px;
+    background: #22d3ee;
+    border: 2px solid #082f49;
+    box-shadow: 0 0 0 2px rgba(8, 47, 73, 0.35);
+    cursor: nwse-resize;
+    z-index: 30;
+  }
+
+  .edit-mode .resize-handle {
+    display: block;
+  }
+
+  .resize-hint {
+    display: none;
+    position: absolute;
+    right: 1.05rem;
+    bottom: -0.7rem;
+    padding: 0.08rem 0.35rem;
+    border-radius: 999px;
+    font-size: 0.56rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #042f2e;
+    background: rgba(45, 212, 191, 0.95);
+    border: 1px solid rgba(15, 118, 110, 0.8);
+    pointer-events: none;
+    z-index: 30;
+  }
+
+  .edit-mode .resize-hint {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .score-clickable {
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+    transition: transform 0.1s ease, filter 0.1s ease;
+  }
+
+  .score-clickable:active {
+    transform: scale(0.98);
+    filter: brightness(1.12);
+  }
+
+  /* Visibility toggle pill – inactive state */
+  .pill-inactive {
+    opacity: 0.4;
+    text-decoration: line-through;
+  }
+}
+
+@keyframes score-flash {
+  0% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  40% {
+    transform: scale(1.06);
+    filter: brightness(1.55);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes possession-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.86;
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.35);
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+    text-shadow: 0 0 18px rgba(239, 68, 68, 0.6);
+  }
+}

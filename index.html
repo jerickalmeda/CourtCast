@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CourtCast</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body id="app-shell" class="app-shell h-screen overflow-hidden select-none relative">
+
+  <!-- ── Edit Mode Banner ─────────────────────────────────────────────────── -->
+  <div id="edit-banner"
+       class="hidden fixed top-0 left-0 right-0 z-40 bg-yellow-500 text-black text-center text-sm font-bold py-1 tracking-widest uppercase">
+    EDIT MODE - Drag, resize, or use Alt + mouse wheel to resize text | Press <kbd class="bg-black/20 px-1 rounded">E</kbd> to exit
+  </div>
+
+  <div id="auto-advance-overlay"
+       class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm items-center justify-center p-6">
+    <div class="auto-advance-card rounded-3xl px-8 py-10 text-center max-w-xl w-full">
+      <div class="text-xs font-black uppercase tracking-[0.35em] text-gray-400 mb-3">Period Complete</div>
+      <div id="auto-advance-title" class="font-digital text-4xl md:text-6xl font-black mb-4">End of Quarter 1</div>
+      <div id="auto-advance-subtitle" class="text-lg md:text-xl control-muted mb-6">Press Space or Enter to start the next period.</div>
+      <div id="auto-advance-summary" class="text-sm control-muted uppercase tracking-[0.25em]">Home 0 - 0 Away</div>
+    </div>
+  </div>
+
+  <div id="operator-toolbar"
+       class="fixed left-4 right-4 bottom-4 z-30 flex flex-col gap-3 md:left-6 md:right-6 md:bottom-6">
+    <div class="control-surface rounded-2xl px-4 py-3 flex flex-col items-center gap-2">
+      <div class="flex w-full flex-wrap items-center justify-center gap-2">
+        <span class="text-[11px] font-black uppercase tracking-[0.3em] control-muted">Shot Clock</span>
+        <button id="toolbar-shot-full" type="button" onclick="resetShotClock('full')"
+                class="px-3 py-1.5 rounded-full bg-amber-500 text-black text-sm font-black uppercase tracking-[0.18em] transition-colors hover:bg-amber-400">
+          24s (Z)
+        </button>
+        <button id="toolbar-shot-offensive" type="button" onclick="resetShotClock('offensive')"
+                class="px-3 py-1.5 rounded-full bg-orange-700 text-white text-sm font-black uppercase tracking-[0.18em] transition-colors hover:bg-orange-600">
+          14s (X)
+        </button>
+        <button type="button" onclick="toggleModal()"
+                class="px-3 py-1.5 rounded-full bg-gray-700 text-white text-sm font-bold uppercase tracking-[0.18em] transition-colors hover:bg-gray-600">
+          Menu (M)
+        </button>
+        <button type="button" onclick="openDisplayView()"
+                class="px-3 py-1.5 rounded-full bg-sky-700 text-white text-sm font-bold uppercase tracking-[0.18em] transition-colors hover:bg-sky-600">
+          Open Display View
+        </button>
+      </div>
+      <div class="w-full text-center text-xs uppercase tracking-[0.22em] control-muted">
+        Team names, logos, and themes live in the Control Hub.
+      </div>
+    </div>
+    <div class="control-surface rounded-2xl px-4 py-3 hidden lg:flex items-center justify-between gap-4 text-[11px] uppercase tracking-[0.2em] control-muted font-mono">
+      <span>Space Play/Pause</span>
+      <span>H/J Home +/-</span>
+      <span>K/L Away +/-</span>
+      <span>Q/W Home TO +/-</span>
+      <span>O/P Away TO +/-</span>
+      <span>A Possession</span>
+      <span>B Sound</span>
+      <span>E Edit Mode</span>
+      <span>M Menu</span>
+    </div>
+  </div>
+
+  <!-- ── Scoreboard ──────────────────────────────────────────────────────── -->
+  <div id="scoreboard" class="w-full h-full grid grid-cols-3 gap-4 p-6 pt-8">
+
+    <!-- HOME COLUMN -->
+    <div id="home-panel" class="draggable flex flex-col items-center justify-center gap-3">
+      <div class="team-logo-frame mb-1">
+        <img id="home-logo" alt="Home team logo" class="hidden" />
+      </div>
+      <div id="home-name"
+         class="size-adjustable home-accent text-3xl font-black uppercase tracking-widest truncate max-w-full">HOME</div>
+      <div id="home-score"
+         class="size-adjustable home-accent home-score-size font-digital font-black leading-none">0</div>
+    </div>
+
+    <!-- CENTER COLUMN -->
+    <div class="flex flex-col items-center justify-between py-2 gap-1">
+
+      <!-- Period -->
+      <div id="period-display" class="draggable text-center">
+        <div id="period-label"
+             class="text-xs font-bold uppercase tracking-[0.3em] control-muted mb-0.5">Quarter</div>
+        <div id="period-number"
+             class="font-digital text-5xl font-black text-white leading-none">1</div>
+      </div>
+
+      <div id="possession-display" class="draggable text-center">
+        <div class="text-xs font-bold uppercase tracking-[0.3em] control-muted mb-1">Possession</div>
+        <div class="flex items-center justify-center gap-8 text-4xl font-black">
+          <button id="home-possession-arrow"
+                  type="button"
+                  class="possession-arrow"
+                  onclick="setPossession('home')"
+                  aria-label="Set home possession">&#9664;</button>
+          <button id="away-possession-arrow"
+                  type="button"
+                  class="possession-arrow"
+                  onclick="setPossession('away')"
+                  aria-label="Set away possession">&#9654;</button>
+        </div>
+      </div>
+
+      <!-- Game Clock -->
+      <div id="game-clock-wrap" class="draggable text-center">
+        <div class="text-xs font-bold uppercase tracking-[0.3em] control-muted mb-1">Game Clock</div>
+        <div id="game-clock"
+             class="size-adjustable game-clock-size font-digital font-black text-white leading-none">10:00</div>
+      </div>
+
+      <!-- Shot Clock -->
+      <div id="shot-clock-wrap" class="draggable text-center">
+        <div class="text-xs font-bold uppercase tracking-[0.3em] control-muted mb-1">Shot Clock</div>
+        <div id="shot-clock"
+             class="size-adjustable shot-clock-size font-digital font-black text-amber-400 leading-none">24</div>
+      </div>
+
+      <!-- Status -->
+      <div id="status-display" class="draggable text-center">
+        <div id="status-text"
+             class="text-sm font-semibold control-muted uppercase tracking-widest">
+          Press Space to Start
+        </div>
+      </div>
+
+    </div>
+
+    <!-- AWAY COLUMN -->
+    <div id="away-panel" class="draggable flex flex-col items-center justify-center gap-3">
+      <div class="team-logo-frame mb-1">
+        <img id="away-logo" alt="Away team logo" class="hidden" />
+      </div>
+      <div id="away-name"
+         class="size-adjustable away-accent text-3xl font-black uppercase tracking-widest truncate max-w-full">AWAY</div>
+      <div id="away-score"
+         class="size-adjustable away-accent away-score-size font-digital font-black leading-none">0</div>
+    </div>
+
+  </div>
+
+  <!-- ── Settings Modal ──────────────────────────────────────────────────── -->
+  <div id="modal"
+       class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm overflow-y-auto">
+    <div class="min-h-full flex items-center justify-center p-4">
+      <div class="control-surface rounded-xl w-full max-w-5xl p-6 shadow-2xl">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-xl font-black uppercase tracking-widest text-white">Control Hub</h2>
+          <button onclick="toggleModal()"
+                  class="control-muted hover:text-white text-3xl leading-none transition-colors">&times;</button>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-5 mb-5">
+          <section class="control-surface rounded-2xl p-4">
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <div class="text-xs font-black uppercase tracking-[0.3em] control-muted mb-1">Home Team</div>
+                <div class="text-sm control-muted">Name, color, and logo</div>
+              </div>
+              <div class="team-logo-frame team-logo-frame-sm">
+                <img id="home-logo-preview" alt="Home logo preview" class="hidden" />
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label for="input-home-name" class="block text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Home Team Name</label>
+                <input id="input-home-name" type="text" value="HOME" maxlength="20" title="Home team name"
+                       class="control-surface w-full rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label for="input-home-color" class="block text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Home Color</label>
+                <div class="flex items-center gap-2">
+                  <input id="input-home-color" type="color" value="#3b82f6" title="Home team color"
+                         class="h-10 w-16 cursor-pointer rounded border-0 bg-transparent" />
+                  <span id="home-color-hex" class="control-muted text-sm font-mono">#3b82f6</span>
+                </div>
+              </div>
+              <div class="md:col-span-2">
+                <label for="input-home-logo" class="block text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Home Logo Upload</label>
+                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <input id="input-home-logo" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" title="Upload home team logo"
+                         class="block w-full text-sm control-muted" />
+                  <button type="button" onclick="removeLogo('home')"
+                          class="px-3 py-2 rounded-full bg-gray-700 text-white text-xs font-bold uppercase tracking-[0.18em] transition-colors hover:bg-gray-600">
+                    Remove Logo
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="control-surface rounded-2xl p-4">
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <div class="text-xs font-black uppercase tracking-[0.3em] control-muted mb-1">Away Team</div>
+                <div class="text-sm control-muted">Name, color, and logo</div>
+              </div>
+              <div class="team-logo-frame team-logo-frame-sm">
+                <img id="away-logo-preview" alt="Away logo preview" class="hidden" />
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label for="input-away-name" class="block text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Away Team Name</label>
+                <input id="input-away-name" type="text" value="AWAY" maxlength="20" title="Away team name"
+                       class="control-surface w-full rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label for="input-away-color" class="block text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Away Color</label>
+                <div class="flex items-center gap-2">
+                  <input id="input-away-color" type="color" value="#ef4444" title="Away team color"
+                         class="h-10 w-16 cursor-pointer rounded border-0 bg-transparent" />
+                  <span id="away-color-hex" class="control-muted text-sm font-mono">#ef4444</span>
+                </div>
+              </div>
+              <div class="md:col-span-2">
+                <label for="input-away-logo" class="block text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Away Logo Upload</label>
+                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <input id="input-away-logo" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" title="Upload away team logo"
+                         class="block w-full text-sm control-muted" />
+                  <button type="button" onclick="removeLogo('away')"
+                          class="px-3 py-2 rounded-full bg-gray-700 text-white text-xs font-bold uppercase tracking-[0.18em] transition-colors hover:bg-gray-600">
+                    Remove Logo
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-5">
+          <div>
+            <label for="input-periods" class="block text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Periods</label>
+            <input id="input-periods" type="number" value="4" min="1" max="10" title="Number of periods"
+                   class="control-surface w-full rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label for="input-period-duration" class="block text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Period (min)</label>
+            <input id="input-period-duration" type="number" value="10" min="1" max="60" title="Minutes per period"
+                   class="control-surface w-full rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label for="input-shot-full" class="block text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Shot Full (s)</label>
+            <input id="input-shot-full" type="number" value="24" min="1" max="60" title="Full shot clock seconds"
+                   class="control-surface w-full rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label for="input-shot-offensive" class="block text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Shot OFR (s)</label>
+            <input id="input-shot-offensive" type="number" value="14" min="1" max="60" title="Offensive rebound shot clock seconds"
+                   class="control-surface w-full rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label for="input-team-timeouts" class="block text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Timeouts</label>
+            <input id="input-team-timeouts" type="number" value="5" min="1" max="10" title="Starting timeout count per team"
+                   class="control-surface w-full rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
+          <div class="control-surface rounded-2xl p-4 xl:col-span-2">
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <div class="text-xs font-black uppercase tracking-[0.3em] control-muted mb-1">Background</div>
+                <div class="text-sm control-muted">Use a preset theme or apply your own gradient.</div>
+              </div>
+              <button type="button" onclick="applyCustomBackground()"
+                      class="px-3 py-2 rounded-full bg-gray-700 text-white text-xs font-bold uppercase tracking-[0.18em] transition-colors hover:bg-gray-600">
+                Apply Custom
+              </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label for="input-bg-start" class="block text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Top Color</label>
+                <div class="flex items-center gap-2">
+                  <input id="input-bg-start" type="color" value="#1a1a1a" title="Background top color"
+                         class="h-10 w-16 cursor-pointer rounded border-0 bg-transparent" />
+                  <span id="bg-start-hex" class="control-muted text-sm font-mono">#1a1a1a</span>
+                </div>
+              </div>
+              <div>
+                <label for="input-bg-end" class="block text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Bottom Color</label>
+                <div class="flex items-center gap-2">
+                  <input id="input-bg-end" type="color" value="#050505" title="Background bottom color"
+                         class="h-10 w-16 cursor-pointer rounded border-0 bg-transparent" />
+                  <span id="bg-end-hex" class="control-muted text-sm font-mono">#050505</span>
+                </div>
+              </div>
+              <div>
+                <div class="text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Background Style</div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button id="bg-gradient-btn" type="button" onclick="setBackgroundMode('gradient')"
+                          class="theme-chip-active px-3 py-1.5 rounded-full text-xs font-semibold border border-gray-600 bg-gray-700 text-white transition-colors">
+                    Gradient
+                  </button>
+                  <button id="bg-transparent-btn" type="button" onclick="setBackgroundMode('transparent')"
+                          class="px-3 py-1.5 rounded-full text-xs font-semibold border border-gray-600 bg-gray-700 text-white transition-colors">
+                    Transparent
+                  </button>
+                  <button id="bg-image-btn" type="button" onclick="setBackgroundMode('image')"
+                          class="px-3 py-1.5 rounded-full text-xs font-semibold border border-gray-600 bg-gray-700 text-white transition-colors">
+                    Image
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label for="input-bg-image" class="block text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Background Image</label>
+                <input id="input-bg-image" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                       title="Upload a background image"
+                       class="block w-full text-sm control-muted" />
+              </div>
+              <div>
+                <div class="text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Image Actions</div>
+                <button type="button" onclick="removeBackgroundImage()"
+                        class="px-3 py-2 rounded-full bg-gray-700 text-white text-xs font-bold uppercase tracking-[0.18em] transition-colors hover:bg-gray-600">
+                  Remove Image
+                </button>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button id="theme-classic" type="button" onclick="setTheme('classic-dark')"
+                      class="theme-chip-active px-4 py-2 rounded-full text-sm font-semibold border border-gray-600 bg-gray-700 text-white transition-colors">
+                Classic Dark
+              </button>
+              <button id="theme-arena" type="button" onclick="setTheme('arena-white')"
+                      class="px-4 py-2 rounded-full text-sm font-semibold border border-gray-600 bg-gray-700 text-white transition-colors">
+                Arena White
+              </button>
+              <button id="theme-wood" type="button" onclick="setTheme('court-wood')"
+                      class="px-4 py-2 rounded-full text-sm font-semibold border border-gray-600 bg-gray-700 text-white transition-colors">
+                Court Wood
+              </button>
+            </div>
+          </div>
+
+          <div class="control-surface rounded-2xl p-4">
+            <div class="text-xs font-black uppercase tracking-[0.3em] control-muted mb-2">Quick Shot Clock</div>
+            <div class="text-sm control-muted mb-3">Operators can change the reset values here, then use the toolbar or hotkeys.</div>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" onclick="resetShotClock('full')"
+                      class="px-4 py-2 rounded-full bg-amber-500 text-black text-sm font-black uppercase tracking-[0.18em] transition-colors hover:bg-amber-400">
+                Full Reset
+              </button>
+              <button type="button" onclick="resetShotClock('offensive')"
+                      class="px-4 py-2 rounded-full bg-orange-700 text-white text-sm font-black uppercase tracking-[0.18em] transition-colors hover:bg-orange-600">
+                Offensive Reset
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div class="text-xs font-bold uppercase tracking-widest control-muted mb-2">Theme</div>
+            <div class="text-xs font-bold uppercase tracking-widest control-muted mb-2">Sound</div>
+            <button id="mute-toggle"
+                    type="button"
+                    onclick="toggleMute()"
+                    class="px-4 py-2 rounded-full text-sm font-semibold border border-gray-600 bg-gray-700 text-white transition-colors">
+              Sound On (B)
+            </button>
+          </div>
+          <div>
+            <div class="text-xs font-bold uppercase tracking-widest control-muted mb-2">Possession</div>
+            <button type="button"
+                    onclick="togglePossession()"
+                    class="px-4 py-2 rounded-full text-sm font-semibold border border-gray-600 bg-gray-700 text-white transition-colors">
+              Toggle Arrow (A)
+            </button>
+          </div>
+        </div>
+
+        <!-- Visibility Toggles -->
+        <div class="mb-5">
+          <div class="text-xs font-bold uppercase tracking-widest control-muted mb-2">Visibility</div>
+          <div class="flex flex-wrap gap-2">
+            <button id="toggle-shot-clock"
+                    onclick="toggleElementGroup(['shot-clock-wrap'], 'toggle-shot-clock')"
+                    class="px-4 py-1.5 rounded-full text-sm font-semibold border border-gray-600 bg-gray-700 text-white hover:bg-gray-600 transition-colors">
+              Shot Clock
+            </button>
+            <button id="toggle-fouls"
+                    onclick="toggleElementGroup(['home-fouls','away-fouls'], 'toggle-fouls')"
+                    class="px-4 py-1.5 rounded-full text-sm font-semibold border border-gray-600 bg-gray-700 text-white hover:bg-gray-600 transition-colors">
+              Fouls
+            </button>
+            <button id="toggle-period"
+                    onclick="toggleElementGroup(['period-display'], 'toggle-period')"
+                    class="px-4 py-1.5 rounded-full text-sm font-semibold border border-gray-600 bg-gray-700 text-white hover:bg-gray-600 transition-colors">
+              Period
+            </button>
+            <button id="toggle-possession"
+                    onclick="toggleElementGroup(['possession-display'], 'toggle-possession')"
+                    class="px-4 py-1.5 rounded-full text-sm font-semibold border border-gray-600 bg-gray-700 text-white hover:bg-gray-600 transition-colors">
+              Possession
+            </button>
+            <button id="toggle-timeouts"
+                    onclick="toggleElementGroup(['home-timeouts','away-timeouts'], 'toggle-timeouts')"
+                    class="px-4 py-1.5 rounded-full text-sm font-semibold border border-gray-600 bg-gray-700 text-white hover:bg-gray-600 transition-colors">
+              Timeouts
+            </button>
+          </div>
+        </div>
+
+        <!-- Score / Foul Controls -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+          <!-- Home -->
+          <div class="control-surface rounded-lg p-4">
+            <div id="modal-home-name"
+                 class="home-accent text-sm font-black uppercase tracking-widest mb-3">HOME</div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs control-muted uppercase tracking-wider">Score</span>
+              <div class="flex items-center gap-2">
+                <button onclick="adjustScore('home', -1)"
+                        class="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-lg font-bold transition-colors">−</button>
+                <span id="modal-home-score" class="w-10 text-center text-xl font-bold font-digital">0</span>
+                <button onclick="adjustScore('home', 1)"
+                        class="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-lg font-bold transition-colors">+</button>
+              </div>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs control-muted uppercase tracking-wider">Fouls</span>
+              <div class="flex items-center gap-2">
+                <button onclick="adjustFouls('home', -1)"
+                        class="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-lg font-bold transition-colors">−</button>
+                <span id="modal-home-fouls" class="w-10 text-center text-xl font-bold font-digital">0</span>
+                <button onclick="adjustFouls('home', 1)"
+                        class="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-lg font-bold transition-colors">+</button>
+              </div>
+            </div>
+            <div class="flex items-center justify-between mt-3">
+              <span class="text-xs control-muted uppercase tracking-wider">Timeouts</span>
+              <div class="flex items-center gap-2">
+                <button onclick="adjustTimeouts('home', -1)"
+                        class="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-lg font-bold transition-colors">-</button>
+                <span id="modal-home-timeouts" class="w-10 text-center text-xl font-bold font-digital">5</span>
+                <button onclick="adjustTimeouts('home', 1)"
+                        class="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-lg font-bold transition-colors">+</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Away -->
+          <div class="control-surface rounded-lg p-4">
+            <div id="modal-away-name"
+                 class="away-accent text-sm font-black uppercase tracking-widest mb-3">AWAY</div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs control-muted uppercase tracking-wider">Score</span>
+              <div class="flex items-center gap-2">
+                <button onclick="adjustScore('away', -1)"
+                        class="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-lg font-bold transition-colors">−</button>
+                <span id="modal-away-score" class="w-10 text-center text-xl font-bold font-digital">0</span>
+                <button onclick="adjustScore('away', 1)"
+                        class="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-lg font-bold transition-colors">+</button>
+              </div>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs control-muted uppercase tracking-wider">Fouls</span>
+              <div class="flex items-center gap-2">
+                <button onclick="adjustFouls('away', -1)"
+                        class="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-lg font-bold transition-colors">−</button>
+                <span id="modal-away-fouls" class="w-10 text-center text-xl font-bold font-digital">0</span>
+                <button onclick="adjustFouls('away', 1)"
+                        class="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-lg font-bold transition-colors">+</button>
+              </div>
+            </div>
+            <div class="flex items-center justify-between mt-3">
+              <span class="text-xs control-muted uppercase tracking-wider">Timeouts</span>
+              <div class="flex items-center gap-2">
+                <button onclick="adjustTimeouts('away', -1)"
+                        class="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-lg font-bold transition-colors">-</button>
+                <span id="modal-away-timeouts" class="w-10 text-center text-xl font-bold font-digital">5</span>
+                <button onclick="adjustTimeouts('away', 1)"
+                        class="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-lg font-bold transition-colors">+</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-xs font-bold uppercase tracking-widest control-muted">Game Log</div>
+            <button type="button"
+                    onclick="clearGameLog()"
+                    class="text-xs uppercase tracking-[0.2em] control-muted hover:text-white transition-colors">
+              Clear
+            </button>
+          </div>
+          <div id="game-log"
+               class="event-log control-surface rounded-lg p-3 text-sm">
+            <div class="event-log-entry py-2 control-muted">No events yet.</div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-wrap gap-2 pt-4 border-t border-gray-700">
+          <button onclick="applySettings()"
+                  class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded uppercase tracking-wider text-sm transition-colors">
+            Apply
+          </button>
+          <button onclick="advancePeriod()"
+                  class="px-5 py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded uppercase tracking-wider text-sm transition-colors">
+            Next Period
+          </button>
+          <button onclick="fullReset()"
+                  class="px-5 py-2 bg-red-700 hover:bg-red-600 text-white font-bold rounded uppercase tracking-wider text-sm transition-colors">
+            Full Reset
+          </button>
+          <button onclick="resetLayout()"
+                  class="px-5 py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded uppercase tracking-wider text-sm transition-colors">
+            Reset Layout
+          </button>
+          <button onclick="loadDefaultLayout()"
+                  class="px-5 py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded uppercase tracking-wider text-sm transition-colors">
+            Load Default Layout
+          </button>
+          <button onclick="exportGameSummary()"
+                  class="px-5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded uppercase tracking-wider text-sm transition-colors">
+            Print / Save Summary
+          </button>
+          <button onclick="toggleModal()"
+                  class="ml-auto px-5 py-2 bg-gray-800 hover:bg-gray-700 text-white font-bold rounded uppercase tracking-wider text-sm transition-colors">
+            Close <span class="text-gray-500">(M)</span>
+          </button>
+        </div>
+
+        <!-- Hotkey Reference -->
+        <div class="mt-5 pt-4 border-t border-gray-800">
+          <div class="text-xs font-bold uppercase tracking-widest control-muted mb-2">Hotkeys</div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1.5 text-xs control-muted font-mono">
+            <div><kbd class="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">Space</kbd> &nbsp;Play / Pause</div>
+            <div><kbd class="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">Z</kbd> &nbsp;Shot clock → 24s (full)</div>
+            <div><kbd class="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">H</kbd> &nbsp;Home +1 &nbsp;&nbsp;
+                 <kbd class="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">J</kbd> &nbsp;Home −1</div>
+            <div><kbd class="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">X</kbd> &nbsp;Shot clock → 14s (OFR)</div>
+            <div><kbd class="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">K</kbd> &nbsp;Away +1 &nbsp;&nbsp;
+                 <kbd class="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">L</kbd> &nbsp;Away −1</div>
+            <div><kbd class="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">Q</kbd> &nbsp;Home TO -1 &nbsp;&nbsp;
+              <kbd class="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">W</kbd> &nbsp;Home TO +1</div>
+            <div><kbd class="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">O</kbd> &nbsp;Away TO -1 &nbsp;&nbsp;
+              <kbd class="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">P</kbd> &nbsp;Away TO +1</div>
+            <div><kbd class="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">A</kbd> &nbsp;Toggle possession arrow</div>
+            <div><kbd class="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">B</kbd> &nbsp;Mute / unmute buzzer</div>
+            <div><kbd class="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">E</kbd> &nbsp;Toggle Edit / Drag mode</div>
+            <div><kbd class="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">M</kbd> &nbsp;Toggle this menu</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
