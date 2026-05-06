@@ -121,11 +121,27 @@
              class="size-adjustable game-clock-size font-varsity-numeric font-varsity-clock font-black text-white leading-none">10:00</div>
       </div>
 
+      <div id="custom-text-1-wrap" class="draggable text-center">
+        <div id="custom-text-1"
+             class="size-adjustable text-xl font-black text-white leading-none tracking-[0.18em] uppercase whitespace-nowrap inline-block"
+             tabindex="0"
+             role="textbox"
+             aria-label="Custom text 1"></div>
+      </div>
+
       <!-- Shot Clock -->
       <div id="shot-clock-wrap" class="draggable text-center">
         <div class="text-xs font-bold uppercase tracking-[0.3em] control-muted mb-1">Shot Clock</div>
         <div id="shot-clock"
              class="size-adjustable shot-clock-size font-varsity-numeric font-varsity-clock font-black text-amber-400 leading-none">24</div>
+      </div>
+
+      <div id="custom-text-2-wrap" class="draggable text-center">
+        <div id="custom-text-2"
+             class="size-adjustable text-lg font-semibold text-white leading-none tracking-[0.14em] uppercase whitespace-nowrap inline-block"
+             tabindex="0"
+             role="textbox"
+             aria-label="Custom text 2"></div>
       </div>
 
       <!-- Status -->
@@ -134,6 +150,14 @@
              class="text-sm font-semibold control-muted uppercase tracking-widest">
           Press Space to Start
         </div>
+      </div>
+
+      <div id="custom-text-3-wrap" class="draggable text-center">
+        <div id="custom-text-3"
+             class="size-adjustable text-sm font-semibold control-muted leading-none tracking-[0.18em] uppercase whitespace-nowrap inline-block"
+             tabindex="0"
+             role="textbox"
+             aria-label="Custom text 3"></div>
       </div>
 
     </div>
@@ -276,6 +300,32 @@
           </div>
         </div>
 
+        <section class="control-surface rounded-2xl p-4 mb-5">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <div class="text-xs font-black uppercase tracking-[0.3em] control-muted mb-1">Custom Text</div>
+              <div class="text-sm control-muted">Use these for sponsors, lower thirds, or event callouts.</div>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label for="input-custom-text-1" class="block text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Custom Text 1</label>
+              <input id="input-custom-text-1" type="text" maxlength="40" title="Custom text 1"
+                     class="control-surface w-full rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label for="input-custom-text-2" class="block text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Custom Text 2</label>
+              <input id="input-custom-text-2" type="text" maxlength="40" title="Custom text 2"
+                     class="control-surface w-full rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label for="input-custom-text-3" class="block text-xs font-bold uppercase tracking-widest control-muted mb-1.5">Custom Text 3</label>
+              <input id="input-custom-text-3" type="text" maxlength="40" title="Custom text 3"
+                     class="control-surface w-full rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
+        </section>
+
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
           <div class="control-surface rounded-2xl p-4 xl:col-span-2">
             <div class="flex items-center justify-between mb-3">
@@ -400,6 +450,21 @@
         <div class="mb-5">
           <div class="text-xs font-bold uppercase tracking-widest control-muted mb-2">Visibility</div>
           <div class="flex flex-wrap gap-2">
+            <button id="toggle-custom-text-1"
+                    onclick="toggleElementGroup(['custom-text-1-wrap'], 'toggle-custom-text-1')"
+                    class="px-4 py-1.5 rounded-full text-sm font-semibold border border-gray-600 bg-gray-700 text-white hover:bg-gray-600 transition-colors">
+              Custom Text 1
+            </button>
+            <button id="toggle-custom-text-2"
+                    onclick="toggleElementGroup(['custom-text-2-wrap'], 'toggle-custom-text-2')"
+                    class="px-4 py-1.5 rounded-full text-sm font-semibold border border-gray-600 bg-gray-700 text-white hover:bg-gray-600 transition-colors">
+              Custom Text 2
+            </button>
+            <button id="toggle-custom-text-3"
+                    onclick="toggleElementGroup(['custom-text-3-wrap'], 'toggle-custom-text-3')"
+                    class="px-4 py-1.5 rounded-full text-sm font-semibold border border-gray-600 bg-gray-700 text-white hover:bg-gray-600 transition-colors">
+              Custom Text 3
+            </button>
             <button id="toggle-game-clock"
                     onclick="toggleElementGroup(['game-clock-wrap'], 'toggle-game-clock')"
                     class="px-4 py-1.5 rounded-full text-sm font-semibold border border-gray-600 bg-gray-700 text-white hover:bg-gray-600 transition-colors">

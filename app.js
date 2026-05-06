@@ -84,6 +84,9 @@ const state = {
     awayName: 'AWAY',
     homeColor: '#3b82f6',
     awayColor: '#ef4444',
+    customText1: '',
+    customText2: '',
+    customText3: '',
     periods: 4,
     periodDuration: 10,
     shotClockFull: 24,
@@ -98,6 +101,9 @@ const SNAP_GRID_DRAG_PX = 16;
 const SNAP_GRID_RESIZE_PX = 32;
 
 const VISIBILITY_GROUPS = [
+  { ids: ['custom-text-1-wrap'], btnId: 'toggle-custom-text-1' },
+  { ids: ['custom-text-2-wrap'], btnId: 'toggle-custom-text-2' },
+  { ids: ['custom-text-3-wrap'], btnId: 'toggle-custom-text-3' },
   { ids: ['game-clock-wrap'], btnId: 'toggle-game-clock' },
   { ids: ['shot-clock-wrap'], btnId: 'toggle-shot-clock' },
   { ids: ['home-fouls', 'away-fouls'], btnId: 'toggle-fouls' },
@@ -448,6 +454,87 @@ function renderTeams() {
   });
 }
 
+function getCustomTextEntries() {
+  return [
+    { key: 'customText1', inputId: 'input-custom-text-1', textId: 'custom-text-1' },
+    { key: 'customText2', inputId: 'input-custom-text-2', textId: 'custom-text-2' },
+    { key: 'customText3', inputId: 'input-custom-text-3', textId: 'custom-text-3' },
+  ];
+}
+
+function renderCustomTexts() {
+  getCustomTextEntries().forEach(({ key, textId }) => {
+    const el = document.getElementById(textId);
+    if (!el) return;
+    el.textContent = state.config[key] || '';
+    el.dataset.value = state.config[key] || '';
+  });
+
+  requestAnimationFrame(() => {
+    getCustomTextEntries().forEach(({ textId }) => {
+      fitText(document.getElementById(textId));
+    });
+  });
+}
+
+function sanitizeCustomText(value) {
+  return String(value || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 40);
+}
+
+function syncCustomTextInputs() {
+  getCustomTextEntries().forEach(({ key, inputId }) => {
+    const input = document.getElementById(inputId);
+    if (input) input.value = state.config[key] || '';
+  });
+}
+
+function setCustomText(key, value, options = {}) {
+  const { shouldPersist = true, shouldRender = true } = options;
+  if (!(key in state.config)) return;
+  state.config[key] = sanitizeCustomText(value);
+  if (shouldRender) renderCustomTexts();
+  syncCustomTextInputs();
+  if (shouldPersist) persistRuntimeState();
+}
+
+function bindCustomTextEditors() {
+  getCustomTextEntries().forEach(({ key, textId }) => {
+    const el = document.getElementById(textId);
+    if (!el || el.dataset.bound === 'true') return;
+
+    el.addEventListener('dblclick', () => {
+      if (state.editMode || isDisplayMode) return;
+      el.contentEditable = 'true';
+      el.dataset.editing = 'true';
+      el.focus();
+      document.execCommand('selectAll', false, null);
+    });
+
+    el.addEventListener('blur', () => {
+      if (el.dataset.editing !== 'true') return;
+      el.contentEditable = 'false';
+      el.dataset.editing = 'false';
+      setCustomText(key, el.textContent || '');
+    });
+
+    el.addEventListener('keydown', (event) => {
+      if (el.dataset.editing !== 'true') return;
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        el.blur();
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        el.textContent = state.config[key] || '';
+        el.blur();
+      }
+    });
+
+    el.dataset.bound = 'true';
+  });
+}
+
 function renderLogos() {
   renderLogo('home');
   renderLogo('away');
@@ -614,6 +701,7 @@ function applyStateSnapshot(snapshot) {
   renderBackgroundModeButtons();
 
   renderTeams();
+  renderCustomTexts();
   renderScores();
   renderPossession();
   renderSoundState();
@@ -901,6 +989,7 @@ function toggleModal() {
     document.getElementById('input-shot-full').value = c.shotClockFull;
     document.getElementById('input-shot-offensive').value = c.shotClockOffensive;
     document.getElementById('input-team-timeouts').value = c.teamTimeouts;
+    syncCustomTextInputs();
     updateBackgroundInputs();
     renderSnapMode();
   }
@@ -912,6 +1001,9 @@ function applySettings() {
   c.awayName = document.getElementById('input-away-name').value.trim() || 'AWAY';
   c.homeColor = document.getElementById('input-home-color').value;
   c.awayColor = document.getElementById('input-away-color').value;
+  c.customText1 = sanitizeCustomText(document.getElementById('input-custom-text-1').value);
+  c.customText2 = sanitizeCustomText(document.getElementById('input-custom-text-2').value);
+  c.customText3 = sanitizeCustomText(document.getElementById('input-custom-text-3').value);
   c.periods = Math.max(1, parseInt(document.getElementById('input-periods').value) || 4);
   c.periodDuration = Math.max(1, parseInt(document.getElementById('input-period-duration').value) || 10);
   c.shotClockFull = Math.max(1, parseInt(document.getElementById('input-shot-full').value) || 24);
@@ -919,6 +1011,7 @@ function applySettings() {
   c.teamTimeouts = Math.max(1, parseInt(document.getElementById('input-team-timeouts').value) || 5);
 
   renderTeams();
+  renderCustomTexts();
   state.homeTimeouts = Math.min(state.homeTimeouts, c.teamTimeouts);
   state.awayTimeouts = Math.min(state.awayTimeouts, c.teamTimeouts);
   renderScores();
@@ -1206,7 +1299,7 @@ function toggleEditMode() {
 
 function onDragStart(e) {
   if (!state.editMode) return;
-  if (e.target.closest('.resize-handle') || e.target.closest('.score-clickable')) return;
+  if (e.target.closest('.resize-handle') || e.target.closest('.score-clickable') || e.target.closest('[data-editing="true"]')) return;
   dragState.el = e.currentTarget;
   dragState.startX = e.clientX;
   dragState.startY = e.clientY;
@@ -1649,7 +1742,7 @@ function handleEditableResize(e) {
 // ─── HOTKEYS ──────────────────────────────────────────────────────────────────
 
 document.addEventListener('keydown', (e) => {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
 
   if (state.awaitingAdvance && (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyN')) {
     e.preventDefault();
@@ -1944,6 +2037,7 @@ function init() {
   gameTimer.reset(state.config.periodDuration * 60 * 1000);
   shotTimer.reset(state.config.shotClockFull * 1000);
   renderTeams();
+  renderCustomTexts();
   renderScores();
   const loadedCustomLayout = loadPositions();
   if (!loadedCustomLayout) {
@@ -1966,6 +2060,7 @@ function init() {
   updateStatus('Press Space to Start');
   renderAppBackgroundVisual();
   bindScorePointerControls();
+  bindCustomTextEditors();
 
   subscribeCrossWindowSync();
   const restored = loadRuntimeState();
