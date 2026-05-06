@@ -98,6 +98,7 @@ const SNAP_GRID_DRAG_PX = 16;
 const SNAP_GRID_RESIZE_PX = 32;
 
 const VISIBILITY_GROUPS = [
+  { ids: ['game-clock-wrap'], btnId: 'toggle-game-clock' },
   { ids: ['shot-clock-wrap'], btnId: 'toggle-shot-clock' },
   { ids: ['home-fouls', 'away-fouls'], btnId: 'toggle-fouls' },
   { ids: ['period-display'], btnId: 'toggle-period' },
