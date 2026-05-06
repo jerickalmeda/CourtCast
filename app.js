@@ -394,8 +394,10 @@ function renderScores() {
     if (el) el.textContent = value;
   };
 
-  setText('home-score', state.homeScore);
-  setText('away-score', state.awayScore);
+  const padScore = (n) => (n >= 0 && n <= 9) ? `0${n}` : String(n);
+
+  setText('home-score', padScore(state.homeScore));
+  setText('away-score', padScore(state.awayScore));
   setText('home-foul-count', state.homeFouls);
   setText('away-foul-count', state.awayFouls);
   setText('home-timeout-count', state.homeTimeouts);
