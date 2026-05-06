@@ -224,6 +224,7 @@
     outline: 2px dashed #fbbf24;
     outline-offset: 6px;
     position: absolute;
+    overflow: visible;
   }
   .edit-mode .draggable:hover {
     outline-color: #f59e0b;
@@ -237,16 +238,110 @@
   .resize-handle {
     display: none;
     position: absolute;
-    right: -0.55rem;
-    bottom: -0.55rem;
-    width: 1.05rem;
-    height: 1.05rem;
-    border-radius: 9999px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    z-index: 30;
+  }
+
+  .resize-handle::after {
+    content: '';
+    position: absolute;
     background: #22d3ee;
     border: 2px solid #082f49;
     box-shadow: 0 0 0 2px rgba(8, 47, 73, 0.35);
+  }
+
+  .resize-handle-n {
+    left: 0;
+    top: -0.8rem;
+    width: 100%;
+    height: 1.6rem;
+    cursor: ns-resize;
+  }
+
+  .resize-handle-n::after,
+  .resize-handle-s::after {
+    left: 50%;
+    top: 50%;
+    width: 3.2rem;
+    height: 0.38rem;
+    border-radius: 999px;
+    transform: translate(-50%, -50%);
+  }
+
+  .resize-handle-s {
+    left: 0;
+    bottom: -0.8rem;
+    width: 100%;
+    height: 1.6rem;
+    cursor: ns-resize;
+  }
+
+  .resize-handle-e {
+    right: -0.8rem;
+    top: 0;
+    width: 1.6rem;
+    height: 100%;
+    cursor: ew-resize;
+  }
+
+  .resize-handle-w {
+    left: -0.8rem;
+    top: 0;
+    width: 1.6rem;
+    height: 100%;
+    cursor: ew-resize;
+  }
+
+  .resize-handle-e::after,
+  .resize-handle-w::after {
+    left: 50%;
+    top: 50%;
+    width: 0.38rem;
+    height: 3.2rem;
+    border-radius: 999px;
+    transform: translate(-50%, -50%);
+  }
+
+  .resize-handle-ne {
+    right: -0.7rem;
+    top: -0.7rem;
+    width: 1.4rem;
+    height: 1.4rem;
+    cursor: nesw-resize;
+  }
+
+  .resize-handle-nw {
+    left: -0.7rem;
+    top: -0.7rem;
+    width: 1.4rem;
+    height: 1.4rem;
     cursor: nwse-resize;
-    z-index: 30;
+  }
+
+  .resize-handle-se {
+    right: -0.7rem;
+    bottom: -0.7rem;
+    width: 1.4rem;
+    height: 1.4rem;
+    cursor: nwse-resize;
+  }
+
+  .resize-handle-sw {
+    left: -0.7rem;
+    bottom: -0.7rem;
+    width: 1.4rem;
+    height: 1.4rem;
+    cursor: nesw-resize;
+  }
+
+  .resize-handle-ne::after,
+  .resize-handle-nw::after,
+  .resize-handle-se::after,
+  .resize-handle-sw::after {
+    inset: 0.16rem;
+    border-radius: 0.45rem;
   }
 
   .edit-mode .resize-handle {
@@ -254,26 +349,11 @@
   }
 
   .resize-hint {
-    display: none;
-    position: absolute;
-    right: 1.05rem;
-    bottom: -0.7rem;
-    padding: 0.08rem 0.35rem;
-    border-radius: 999px;
-    font-size: 0.56rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #042f2e;
-    background: rgba(45, 212, 191, 0.95);
-    border: 1px solid rgba(15, 118, 110, 0.8);
-    pointer-events: none;
-    z-index: 30;
+    display: none !important;
   }
 
   .edit-mode .resize-hint {
-    display: inline-flex;
-    align-items: center;
+    display: none !important;
   }
 
   .score-clickable {

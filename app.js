@@ -97,6 +97,14 @@ const FINAL_24S_MS = 24000;
 const SNAP_GRID_DRAG_PX = 16;
 const SNAP_GRID_RESIZE_PX = 32;
 
+const VISIBILITY_GROUPS = [
+  { ids: ['shot-clock-wrap'], btnId: 'toggle-shot-clock' },
+  { ids: ['home-fouls', 'away-fouls'], btnId: 'toggle-fouls' },
+  { ids: ['period-display'], btnId: 'toggle-period' },
+  { ids: ['possession-display'], btnId: 'toggle-possession' },
+  { ids: ['home-timeouts', 'away-timeouts'], btnId: 'toggle-timeouts' },
+];
+
 if (isDisplayMode) {
   document.body.classList.add('display-only');
 }
@@ -391,6 +399,26 @@ function renderScores() {
   setText('modal-away-fouls', state.awayFouls);
   setText('modal-home-timeouts', state.homeTimeouts);
   setText('modal-away-timeouts', state.awayTimeouts);
+
+  requestAnimationFrame(() => {
+    fitText(document.getElementById('home-score'));
+    fitText(document.getElementById('away-score'));
+  });
+}
+
+function fitText(el) {
+  if (!el) return;
+  const parent = el.parentElement;
+  if (!parent) return;
+  const maxW = parent.getBoundingClientRect().width;
+  if (!maxW) return;
+  if (el.getBoundingClientRect().width <= maxW) return;
+  let size = parseFloat(window.getComputedStyle(el).fontSize) || 16;
+  const min = 10;
+  while (el.getBoundingClientRect().width > maxW && size > min) {
+    size = Math.max(min, size - 0.5);
+    el.style.fontSize = size + 'px';
+  }
 }
 
 function renderTeams() {
@@ -412,6 +440,11 @@ function renderTeams() {
   document.getElementById('period-number').textContent = state.period;
 
   if (state.period > periods) state.period = periods;
+
+  requestAnimationFrame(() => {
+    fitText(document.getElementById('home-name'));
+    fitText(document.getElementById('away-name'));
+  });
 }
 
 function renderLogos() {
@@ -584,6 +617,7 @@ function applyStateSnapshot(snapshot) {
   renderPossession();
   renderSoundState();
   renderLogos();
+  applyVisibilitySnapshot(snapshot.visibility);
   renderGameLog();
   updateShotClockLabels();
   renderSnapMode();
@@ -637,6 +671,7 @@ function buildStateSnapshot() {
     snapEnabled: state.snapEnabled,
     possession: state.possession,
     shotClockAutoOff: state.shotClockAutoOff,
+    visibility: buildVisibilitySnapshot(),
     gameLog: state.gameLog.slice(0, 100),
     awaitingAdvance: state.awaitingAdvance,
     running: state.running,
@@ -1003,6 +1038,33 @@ function toggleElementGroup(ids, btnId) {
   persistRuntimeState();
 }
 
+function buildVisibilitySnapshot() {
+  const visibility = {};
+  VISIBILITY_GROUPS.forEach(({ ids, btnId }) => {
+    const first = document.getElementById(ids[0]);
+    if (!first) return;
+    visibility[btnId] = !first.classList.contains('hidden');
+  });
+  return visibility;
+}
+
+function applyVisibilitySnapshot(visibility) {
+  if (!visibility || typeof visibility !== 'object') return;
+
+  VISIBILITY_GROUPS.forEach(({ ids, btnId }) => {
+    if (typeof visibility[btnId] !== 'boolean') return;
+    const shouldShow = visibility[btnId];
+
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('hidden', !shouldShow);
+    });
+
+    const btn = document.getElementById(btnId);
+    if (btn) btn.classList.toggle('pill-inactive', !shouldShow);
+  });
+}
+
 // ─── AUTO ADVANCE OVERLAY ─────────────────────────────────────────────────────
 
 function showAutoAdvanceOverlay(shouldPersist = true) {
@@ -1037,10 +1099,14 @@ const resizeState = {
   el: null,
   startX: 0,
   startY: 0,
+  startLeft: 0,
+  startTop: 0,
   startWidth: 0,
   startHeight: 0,
+  direction: 'se',
   mode: 'box',
   targets: [],
+  bounds: null,
 };
 
 function snapToGrid(value, gridSize) {
@@ -1161,13 +1227,29 @@ function onDragStart(e) {
 }
 
 function ensureResizeHandle(el) {
-  if (el.querySelector('.resize-handle')) return;
-  const handle = document.createElement('button');
-  handle.type = 'button';
-  handle.className = 'resize-handle';
-  handle.title = 'Resize element';
-  handle.addEventListener('mousedown', onResizeStart);
-  el.appendChild(handle);
+  const expectedDirections = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
+  const existingHandles = Array.from(el.querySelectorAll('.resize-handle'));
+  const existingDirections = existingHandles.map((handle) => handle.dataset.direction).filter(Boolean);
+  const hasFullHandleSet = expectedDirections.every((direction) => existingDirections.includes(direction));
+
+  if (!hasFullHandleSet) {
+    existingHandles.forEach((handle) => handle.remove());
+  }
+
+  if (!hasFullHandleSet) {
+    expectedDirections.forEach((direction) => {
+      const handle = document.createElement('button');
+      handle.type = 'button';
+      handle.className = `resize-handle resize-handle-${direction}`;
+      handle.title = `Resize element (${direction.toUpperCase()})`;
+      handle.dataset.direction = direction;
+      handle.addEventListener('mousedown', onResizeStart);
+      el.appendChild(handle);
+    });
+  }
+
+  const existingHint = el.querySelector('.resize-hint');
+  if (existingHint) return;
 
   const hint = document.createElement('span');
   hint.className = 'resize-hint';
@@ -1181,11 +1263,20 @@ function onResizeStart(e) {
   e.stopPropagation();
 
   resizeState.el = e.currentTarget.parentElement;
+  resizeState.direction = e.currentTarget.dataset.direction || 'se';
   resizeState.startX = e.clientX;
   resizeState.startY = e.clientY;
+  resizeState.startLeft = parseInt(resizeState.el.style.left, 10) || 0;
+  resizeState.startTop = parseInt(resizeState.el.style.top, 10) || 0;
   resizeState.startWidth = resizeState.el.offsetWidth;
   resizeState.startHeight = resizeState.el.offsetHeight;
   resizeState.targets = [];
+
+  const scoreboard = document.getElementById('scoreboard');
+  resizeState.bounds = {
+    width: scoreboard ? scoreboard.clientWidth : window.innerWidth,
+    height: scoreboard ? scoreboard.clientHeight : window.innerHeight,
+  };
 
   resizeState.el.querySelectorAll('.size-adjustable').forEach((node) => {
     resizeState.targets.push({
@@ -1222,13 +1313,37 @@ function onResizeStart(e) {
 
 function onResizeMove(e) {
   if (!resizeState.el) return;
-  let nextWidth = clamp(resizeState.startWidth + (e.clientX - resizeState.startX), 96, window.innerWidth);
-  let nextHeight = clamp(resizeState.startHeight + (e.clientY - resizeState.startY), 72, window.innerHeight);
+  const minWidth = 96;
+  const minHeight = 72;
+  const dx = e.clientX - resizeState.startX;
+  const dy = e.clientY - resizeState.startY;
+  const startRight = resizeState.startLeft + resizeState.startWidth;
+  const startBottom = resizeState.startTop + resizeState.startHeight;
+
+  let left = resizeState.startLeft;
+  let top = resizeState.startTop;
+  let right = startRight;
+  let bottom = startBottom;
+
+  if (resizeState.direction.includes('e')) right = startRight + dx;
+  if (resizeState.direction.includes('s')) bottom = startBottom + dy;
+  if (resizeState.direction.includes('w')) left = resizeState.startLeft + dx;
+  if (resizeState.direction.includes('n')) top = resizeState.startTop + dy;
 
   if (state.snapEnabled) {
-    nextWidth = clamp(snapToGrid(nextWidth, SNAP_GRID_RESIZE_PX), 96, window.innerWidth);
-    nextHeight = clamp(snapToGrid(nextHeight, SNAP_GRID_RESIZE_PX), 72, window.innerHeight);
+    if (resizeState.direction.includes('w')) left = snapToGrid(left, SNAP_GRID_RESIZE_PX);
+    if (resizeState.direction.includes('e')) right = snapToGrid(right, SNAP_GRID_RESIZE_PX);
+    if (resizeState.direction.includes('n')) top = snapToGrid(top, SNAP_GRID_RESIZE_PX);
+    if (resizeState.direction.includes('s')) bottom = snapToGrid(bottom, SNAP_GRID_RESIZE_PX);
   }
+
+  left = clamp(left, 0, right - minWidth);
+  top = clamp(top, 0, bottom - minHeight);
+  right = clamp(right, left + minWidth, resizeState.bounds?.width || window.innerWidth);
+  bottom = clamp(bottom, top + minHeight, resizeState.bounds?.height || window.innerHeight);
+
+  let nextWidth = right - left;
+  let nextHeight = bottom - top;
 
   if (resizeState.mode === 'content') {
     const ratioX = nextWidth / Math.max(1, resizeState.startWidth);
@@ -1250,7 +1365,17 @@ function onResizeMove(e) {
     // Keep draggable bounds tight to visible content instead of growing empty canvas space.
     resizeState.el.style.width = 'fit-content';
     resizeState.el.style.height = 'fit-content';
+
+    const actualWidth = resizeState.el.offsetWidth;
+    const actualHeight = resizeState.el.offsetHeight;
+    const anchoredLeft = resizeState.direction.includes('w') ? right - actualWidth : left;
+    const anchoredTop = resizeState.direction.includes('n') ? bottom - actualHeight : top;
+
+    resizeState.el.style.left = `${clamp(anchoredLeft, 0, Math.max(0, (resizeState.bounds?.width || window.innerWidth) - actualWidth))}px`;
+    resizeState.el.style.top = `${clamp(anchoredTop, 0, Math.max(0, (resizeState.bounds?.height || window.innerHeight) - actualHeight))}px`;
   } else {
+    resizeState.el.style.left = `${left}px`;
+    resizeState.el.style.top = `${top}px`;
     resizeState.el.style.width = `${nextWidth}px`;
     resizeState.el.style.height = `${nextHeight}px`;
   }
@@ -1260,12 +1385,18 @@ function onResizeMove(e) {
 
 function onResizeEnd() {
   if (!resizeState.el) return;
+  const finishedEl = resizeState.el;
   resizeState.el.classList.remove('dragging');
   resizeState.el = null;
   resizeState.targets = [];
   resizeState.mode = 'box';
+  resizeState.direction = 'se';
+  resizeState.bounds = null;
   window.removeEventListener('mousemove', onResizeMove);
   window.removeEventListener('mouseup', onResizeEnd);
+  requestAnimationFrame(() => {
+    finishedEl.querySelectorAll('.size-adjustable').forEach(fitText);
+  });
   persistRuntimeState();
 }
 
@@ -1458,6 +1589,10 @@ window.addEventListener('resize', () => {
   layoutResizeRaf = requestAnimationFrame(() => {
     layoutResizeRaf = null;
     loadPositions();
+    fitText(document.getElementById('home-name'));
+    fitText(document.getElementById('away-name'));
+    fitText(document.getElementById('home-score'));
+    fitText(document.getElementById('away-score'));
   });
 });
 
@@ -1502,6 +1637,12 @@ function handleEditableResize(e) {
   const next = clamp(current + (e.deltaY < 0 ? 3 : -3), 20, 240);
   target.style.fontSize = `${next}px`;
   editSessionDirty = true;
+
+  // When enlarging, let the container grow to track the text.
+  // When the user shrinks, fitText ensures the text respects the container boundary.
+  const draggable = target.closest('.draggable');
+  if (draggable) draggable.style.width = 'fit-content';
+  requestAnimationFrame(() => fitText(target));
 }
 
 // ─── HOTKEYS ──────────────────────────────────────────────────────────────────

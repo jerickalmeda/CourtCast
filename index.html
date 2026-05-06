@@ -71,14 +71,20 @@
   <div id="scoreboard" class="w-full h-full grid grid-cols-3 gap-4 p-6 pt-8">
 
     <!-- HOME COLUMN -->
-    <div id="home-panel" class="draggable flex flex-col items-center justify-center gap-3">
-      <div class="team-logo-frame mb-1">
-        <img id="home-logo" alt="Home team logo" class="hidden" />
+    <div id="home-col" class="flex flex-col items-center justify-center gap-3">
+      <div id="home-logo-wrap" class="draggable flex items-center justify-center">
+        <div class="team-logo-frame">
+          <img id="home-logo" alt="Home team logo" class="hidden" />
+        </div>
       </div>
-      <div id="home-name"
-         class="size-adjustable home-accent text-3xl font-black uppercase tracking-widest truncate max-w-full">HOME</div>
-      <div id="home-score"
-        class="size-adjustable home-accent home-score-size font-varsity-numeric font-black leading-none">0</div>
+       <div id="home-name-wrap" class="draggable flex items-center justify-center max-w-full">
+        <div id="home-name"
+         class="size-adjustable home-accent text-3xl font-black uppercase tracking-widest whitespace-nowrap inline-block">HOME</div>
+      </div>
+      <div id="home-score-wrap" class="draggable flex items-center justify-center w-full">
+        <div id="home-score"
+          class="size-adjustable home-accent home-score-size font-varsity-numeric font-black leading-none">0</div>
+      </div>
     </div>
 
     <!-- CENTER COLUMN -->
@@ -133,14 +139,20 @@
     </div>
 
     <!-- AWAY COLUMN -->
-    <div id="away-panel" class="draggable flex flex-col items-center justify-center gap-3">
-      <div class="team-logo-frame mb-1">
-        <img id="away-logo" alt="Away team logo" class="hidden" />
+    <div id="away-col" class="flex flex-col items-center justify-center gap-3">
+      <div id="away-logo-wrap" class="draggable flex items-center justify-center">
+        <div class="team-logo-frame">
+          <img id="away-logo" alt="Away team logo" class="hidden" />
+        </div>
       </div>
-      <div id="away-name"
-         class="size-adjustable away-accent text-3xl font-black uppercase tracking-widest truncate max-w-full">AWAY</div>
-      <div id="away-score"
-        class="size-adjustable away-accent away-score-size font-varsity-numeric font-black leading-none">0</div>
+       <div id="away-name-wrap" class="draggable flex items-center justify-center max-w-full">
+        <div id="away-name"
+         class="size-adjustable away-accent text-3xl font-black uppercase tracking-widest whitespace-nowrap inline-block">AWAY</div>
+      </div>
+      <div id="away-score-wrap" class="draggable flex items-center justify-center w-full">
+        <div id="away-score"
+          class="size-adjustable away-accent away-score-size font-varsity-numeric font-black leading-none">0</div>
+      </div>
     </div>
 
   </div>
