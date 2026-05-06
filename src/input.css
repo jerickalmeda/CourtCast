@@ -47,7 +47,7 @@
 
   .home-score-size,
   .away-score-size {
-    font-size: clamp(5rem, 14vw, 10rem);
+    font-size: max(5rem, 14vw);
   }
 
   .game-clock-size {

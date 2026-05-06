@@ -415,6 +415,10 @@ function renderScores() {
 
 function fitText(el) {
   if (!el) return;
+  if (el.dataset.autoFit === 'true') {
+    el.style.fontSize = '';
+    delete el.dataset.autoFit;
+  }
   const parent = el.parentElement;
   if (!parent) return;
   const maxW = parent.getBoundingClientRect().width;
@@ -425,6 +429,7 @@ function fitText(el) {
   while (el.getBoundingClientRect().width > maxW && size > min) {
     size = Math.max(min, size - 0.5);
     el.style.fontSize = size + 'px';
+    el.dataset.autoFit = 'true';
   }
 }
 
@@ -1448,6 +1453,7 @@ function onResizeMove(e) {
     resizeState.targets.forEach((target) => {
       if (target.type === 'font') {
         target.node.style.fontSize = `${Math.round(target.start * scale * 100) / 100}px`;
+        delete target.node.dataset.autoFit;
       } else if (target.type === 'box') {
         target.node.style.width = `${Math.round(target.width * scale)}px`;
         target.node.style.height = `${Math.round(target.height * scale)}px`;
@@ -1666,7 +1672,13 @@ function loadPositions() {
     if (!fontSizes) return true;
     Object.entries(fontSizes).forEach(([id, size]) => {
       const el = document.getElementById(id);
-      if (el) el.style.fontSize = size;
+      if (!el) return;
+      const parsedSize = parseFloat(size);
+      const shouldScaleWithLayout = id === 'home-score' || id === 'away-score';
+      el.style.fontSize = shouldScaleWithLayout && Number.isFinite(parsedSize)
+        ? `${Math.round(parsedSize * layoutScale * 100) / 100}px`
+        : size;
+      delete el.dataset.autoFit;
     });
   } catch (_) {
     return false;
@@ -1705,6 +1717,7 @@ function resetLayout() {
 
   document.querySelectorAll('.size-adjustable').forEach(el => {
     el.style.fontSize = '';
+    delete el.dataset.autoFit;
   });
 
   scoreboard.style.position = '';
@@ -1722,6 +1735,16 @@ function loadDefaultLayout() {
   updateStatus('Default layout restored');
 }
 
+let pendingWheelResizeSave = null;
+
+function scheduleWheelResizeSave() {
+  if (pendingWheelResizeSave) cancelAnimationFrame(pendingWheelResizeSave);
+  pendingWheelResizeSave = requestAnimationFrame(() => {
+    pendingWheelResizeSave = null;
+    savePositions();
+  });
+}
+
 function handleEditableResize(e) {
   if (!state.editMode || !e.altKey) return;
   const target = e.target.closest('.size-adjustable');
@@ -1729,14 +1752,16 @@ function handleEditableResize(e) {
   e.preventDefault();
 
   const current = parseFloat(window.getComputedStyle(target).fontSize);
-  const next = clamp(current + (e.deltaY < 0 ? 3 : -3), 20, 240);
+  const next = Math.max(20, current + (e.deltaY < 0 ? 3 : -3));
   target.style.fontSize = `${next}px`;
+  delete target.dataset.autoFit;
   editSessionDirty = true;
 
   // When enlarging, let the container grow to track the text.
   // When the user shrinks, fitText ensures the text respects the container boundary.
   const draggable = target.closest('.draggable');
   if (draggable) draggable.style.width = 'fit-content';
+  scheduleWheelResizeSave();
   requestAnimationFrame(() => fitText(target));
 }
 
