@@ -165,11 +165,14 @@ function playBuzzer(type) {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
 
-    // A basketball-style horn sounds more like a dense electric buzz than a pure tone.
-    // Layer saw/square waves with slight detune and subtle tremolo.
+    // Layered oscillators plus modulation gives a gym-horn timbre instead of a pure tone.
     const isShot = type === 'shot';
-    const duration = isShot ? 0.42 : 1.35;
-    const baseFreq = isShot ? 430 : 365;
+    const isManualShort = type === 'manual-short';
+    const isManualLong = type === 'manual-long';
+    const isManual = isManualShort || isManualLong;
+
+    const duration = isManualShort ? 0.55 : isManualLong ? 2.2 : isShot ? 0.42 : 1.35;
+    const baseFreq = isManualShort ? 320 : isManualLong ? 280 : isShot ? 430 : 365;
     const stopAt = ctx.currentTime + duration;
 
     const master = ctx.createGain();
@@ -177,8 +180,8 @@ function playBuzzer(type) {
     const compressor = ctx.createDynamicsCompressor();
 
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(3600, ctx.currentTime);
-    filter.Q.setValueAtTime(0.7, ctx.currentTime);
+    filter.frequency.setValueAtTime(isManual ? 3400 : 3600, ctx.currentTime);
+    filter.Q.setValueAtTime(isManual ? 0.9 : 0.7, ctx.currentTime);
 
     compressor.threshold.setValueAtTime(-18, ctx.currentTime);
     compressor.knee.setValueAtTime(10, ctx.currentTime);
@@ -187,8 +190,9 @@ function playBuzzer(type) {
     compressor.release.setValueAtTime(0.12, ctx.currentTime);
 
     master.gain.setValueAtTime(0.001, ctx.currentTime);
-    master.gain.linearRampToValueAtTime(isShot ? 0.34 : 0.42, ctx.currentTime + 0.03);
-    master.gain.setValueAtTime(isShot ? 0.34 : 0.42, stopAt - 0.08);
+    const level = isManualLong ? 0.5 : isManualShort ? 0.46 : isShot ? 0.34 : 0.42;
+    master.gain.linearRampToValueAtTime(level, ctx.currentTime + 0.03);
+    master.gain.setValueAtTime(level, stopAt - 0.08);
     master.gain.exponentialRampToValueAtTime(0.0001, stopAt);
 
     master.connect(filter);
@@ -207,12 +211,20 @@ function playBuzzer(type) {
     oscB.frequency.setValueAtTime(baseFreq * 1.01, ctx.currentTime);
     oscC.frequency.setValueAtTime(baseFreq * 0.5, ctx.currentTime);
 
+    // Quick attack chirp makes manual buzzer presses feel closer to arena horns.
+    if (isManual) {
+      oscA.frequency.exponentialRampToValueAtTime(baseFreq * 1.12, ctx.currentTime + 0.02);
+      oscA.frequency.exponentialRampToValueAtTime(baseFreq, ctx.currentTime + 0.09);
+      oscB.frequency.exponentialRampToValueAtTime(baseFreq * 1.14, ctx.currentTime + 0.02);
+      oscB.frequency.exponentialRampToValueAtTime(baseFreq * 1.01, ctx.currentTime + 0.09);
+    }
+
     const gA = ctx.createGain();
     const gB = ctx.createGain();
     const gC = ctx.createGain();
-    gA.gain.value = 0.6;
-    gB.gain.value = 0.42;
-    gC.gain.value = 0.25;
+    gA.gain.value = isManual ? 0.64 : 0.6;
+    gB.gain.value = isManual ? 0.46 : 0.42;
+    gC.gain.value = isManual ? 0.16 : 0.25;
 
     oscA.connect(gA);
     oscB.connect(gB);
@@ -225,8 +237,8 @@ function playBuzzer(type) {
     const lfo = ctx.createOscillator();
     const lfoGain = ctx.createGain();
     lfo.type = 'sine';
-    lfo.frequency.setValueAtTime(isShot ? 26 : 18, ctx.currentTime);
-    lfoGain.gain.setValueAtTime(isShot ? 8 : 12, ctx.currentTime);
+    lfo.frequency.setValueAtTime(isManual ? 12 : isShot ? 26 : 18, ctx.currentTime);
+    lfoGain.gain.setValueAtTime(isManual ? 15 : isShot ? 8 : 12, ctx.currentTime);
     lfo.connect(lfoGain);
     lfoGain.connect(oscA.frequency);
 
@@ -1545,6 +1557,12 @@ document.addEventListener('keydown', (e) => {
       break;
     case 'KeyB':
       toggleMute();
+      break;
+    case 'KeyF':
+      playBuzzer('manual-short');
+      break;
+    case 'KeyG':
+      playBuzzer('manual-long');
       break;
     case 'KeyS':
       toggleSnapMode();
