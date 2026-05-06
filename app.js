@@ -1442,7 +1442,8 @@ function onResizeMove(e) {
   if (resizeState.mode === 'content') {
     const ratioX = nextWidth / Math.max(1, resizeState.startWidth);
     const ratioY = nextHeight / Math.max(1, resizeState.startHeight);
-    const scale = clamp((ratioX + ratioY) / 2, 0.35, 4);
+    const hasScoreTarget = resizeState.targets.some((target) => target.node?.id === 'home-score' || target.node?.id === 'away-score');
+    const scale = clamp((ratioX + ratioY) / 2, 0.35, hasScoreTarget ? 100 : 4);
 
     resizeState.targets.forEach((target) => {
       if (target.type === 'font') {
