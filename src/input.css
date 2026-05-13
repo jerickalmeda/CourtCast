@@ -37,6 +37,36 @@
     display: inline-block;
   }
 
+  .clock-display {
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  .clock-main {
+    display: inline-block;
+    text-align: right;
+    min-width: 2ch;
+  }
+
+  .clock-main-game {
+    min-width: 5.2ch;
+  }
+
+  .clock-main-shot {
+    min-width: 2ch;
+  }
+
+  .clock-tenths {
+    display: inline-block;
+    min-width: 0.9ch;
+    text-align: left;
+    font-size: 0.72em;
+    line-height: 1;
+    transform: translateY(-0.03em);
+  }
+
   .home-accent {
     color: var(--home-color);
   }

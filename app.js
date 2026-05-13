@@ -277,7 +277,10 @@ function renderGameClock(ms) {
 
   if (ms < 60000) {
     const tenths = Math.floor((ms % 1000) / 100);
-    el.textContent = `${pad(mins)}:${pad(secs)}.${tenths}`;
+    el.innerHTML = `
+      <span style="display:inline-block;text-align:right;min-width:5.2ch;">${pad(mins)}:${pad(secs)}</span>
+      <span style="display:inline-block;min-width:.9ch;text-align:left;font-size:.72em;line-height:1;transform:translateY(-.03em);">.${tenths}</span>
+    `;
   } else {
     el.textContent = `${pad(mins)}:${pad(secs)}`;
   }
@@ -286,7 +289,7 @@ function renderGameClock(ms) {
 function renderShotClockOff() {
   const el = document.getElementById('shot-clock');
   // Standard endgame behavior: shot clock goes dark (no label text).
-  el.textContent = '';
+  el.innerHTML = '';
   el.style.opacity = '0';
 }
 
@@ -326,15 +329,21 @@ function renderShotClock(ms) {
 
   const el = document.getElementById('shot-clock');
   el.style.opacity = '1';
-  const totalSec = Math.ceil(ms / 1000);
 
   if (ms <= 0) {
-    el.textContent = '00';
+    el.innerHTML = `
+      <span style="display:inline-block;text-align:right;min-width:2ch;">0</span>
+      <span style="display:inline-block;min-width:.9ch;text-align:left;font-size:.72em;line-height:1;transform:translateY(-.03em);">.0</span>
+    `;
   } else if (ms < 10000) {
+    const wholeSeconds = Math.floor(ms / 1000);
     const tenths = Math.floor((ms % 1000) / 100);
-    el.textContent = `${totalSec}.${tenths}`;
+    el.innerHTML = `
+      <span style="display:inline-block;text-align:right;min-width:2ch;">${wholeSeconds}</span>
+      <span style="display:inline-block;min-width:.9ch;text-align:left;font-size:.72em;line-height:1;transform:translateY(-.03em);">.${tenths}</span>
+    `;
   } else {
-    el.textContent = pad(totalSec);
+    el.textContent = pad(Math.ceil(ms / 1000));
   }
 
   // Visual urgency: amber → red under 5 s
