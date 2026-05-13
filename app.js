@@ -99,6 +99,14 @@ const state = {
 const FINAL_24S_MS = 24000;
 const SNAP_GRID_DRAG_PX = 16;
 const SNAP_GRID_RESIZE_PX = 32;
+const BUZZER_AUDIO_SRC = 'Official%20NBA%20Horn%20SFX.mp3';
+const BUZZER_CLIP_SECONDS = {
+  shot: 0.48,
+  'manual-short': 0.58,
+};
+
+let buzzerAudio = null;
+let buzzerStopTimeoutId = null;
 
 const VISIBILITY_GROUPS = [
   { ids: ['custom-text-1-wrap'], btnId: 'toggle-custom-text-1' },
@@ -173,101 +181,59 @@ class AccurateTimer {
   }
 }
 
-// ─── AUDIO BUZZER (Web Audio API — no file required) ─────────────────────────
+// ─── AUDIO BUZZER (MP3 horn playback) ────────────────────────────────────────
+
+function getBuzzerAudio() {
+  if (!buzzerAudio) {
+    buzzerAudio = new Audio(BUZZER_AUDIO_SRC);
+    buzzerAudio.preload = 'auto';
+  }
+  return buzzerAudio;
+}
+
+function clearBuzzerStopTimer() {
+  if (buzzerStopTimeoutId !== null) {
+    window.clearTimeout(buzzerStopTimeoutId);
+    buzzerStopTimeoutId = null;
+  }
+}
+
+function stopBuzzerPlayback() {
+  clearBuzzerStopTimer();
+  if (!buzzerAudio) return;
+  buzzerAudio.pause();
+  try {
+    buzzerAudio.currentTime = 0;
+  } catch (e) {
+    // Ignore seek errors when media metadata is not fully ready yet.
+  }
+}
 
 function playBuzzer(type) {
   if (state.muted) return;
+
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const audio = getBuzzerAudio();
+    const clipSeconds = BUZZER_CLIP_SECONDS[type] ?? null;
 
-    // Layered oscillators plus modulation gives a gym-horn timbre instead of a pure tone.
-    const isShot = type === 'shot';
-    const isManualShort = type === 'manual-short';
-    const isManualLong = type === 'manual-long';
-    const isManual = isManualShort || isManualLong;
+    clearBuzzerStopTimer();
+    audio.pause();
+    audio.currentTime = 0;
 
-    const duration = isManualShort ? 0.55 : isManualLong ? 2.2 : isShot ? 0.42 : 1.35;
-    const baseFreq = isManualShort ? 320 : isManualLong ? 280 : isShot ? 430 : 365;
-    const stopAt = ctx.currentTime + duration;
+    const playPromise = audio.play();
 
-    const master = ctx.createGain();
-    const filter = ctx.createBiquadFilter();
-    const compressor = ctx.createDynamicsCompressor();
-
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(isManual ? 3400 : 3600, ctx.currentTime);
-    filter.Q.setValueAtTime(isManual ? 0.9 : 0.7, ctx.currentTime);
-
-    compressor.threshold.setValueAtTime(-18, ctx.currentTime);
-    compressor.knee.setValueAtTime(10, ctx.currentTime);
-    compressor.ratio.setValueAtTime(5, ctx.currentTime);
-    compressor.attack.setValueAtTime(0.003, ctx.currentTime);
-    compressor.release.setValueAtTime(0.12, ctx.currentTime);
-
-    master.gain.setValueAtTime(0.001, ctx.currentTime);
-    const level = isManualLong ? 0.5 : isManualShort ? 0.46 : isShot ? 0.34 : 0.42;
-    master.gain.linearRampToValueAtTime(level, ctx.currentTime + 0.03);
-    master.gain.setValueAtTime(level, stopAt - 0.08);
-    master.gain.exponentialRampToValueAtTime(0.0001, stopAt);
-
-    master.connect(filter);
-    filter.connect(compressor);
-    compressor.connect(ctx.destination);
-
-    const oscA = ctx.createOscillator();
-    const oscB = ctx.createOscillator();
-    const oscC = ctx.createOscillator();
-
-    oscA.type = 'sawtooth';
-    oscB.type = 'square';
-    oscC.type = 'sawtooth';
-
-    oscA.frequency.setValueAtTime(baseFreq, ctx.currentTime);
-    oscB.frequency.setValueAtTime(baseFreq * 1.01, ctx.currentTime);
-    oscC.frequency.setValueAtTime(baseFreq * 0.5, ctx.currentTime);
-
-    // Quick attack chirp makes manual buzzer presses feel closer to arena horns.
-    if (isManual) {
-      oscA.frequency.exponentialRampToValueAtTime(baseFreq * 1.12, ctx.currentTime + 0.02);
-      oscA.frequency.exponentialRampToValueAtTime(baseFreq, ctx.currentTime + 0.09);
-      oscB.frequency.exponentialRampToValueAtTime(baseFreq * 1.14, ctx.currentTime + 0.02);
-      oscB.frequency.exponentialRampToValueAtTime(baseFreq * 1.01, ctx.currentTime + 0.09);
+    if (Number.isFinite(clipSeconds) && clipSeconds > 0) {
+      buzzerStopTimeoutId = window.setTimeout(() => {
+        stopBuzzerPlayback();
+      }, Math.round(clipSeconds * 1000));
     }
 
-    const gA = ctx.createGain();
-    const gB = ctx.createGain();
-    const gC = ctx.createGain();
-    gA.gain.value = isManual ? 0.64 : 0.6;
-    gB.gain.value = isManual ? 0.46 : 0.42;
-    gC.gain.value = isManual ? 0.16 : 0.25;
-
-    oscA.connect(gA);
-    oscB.connect(gB);
-    oscC.connect(gC);
-    gA.connect(master);
-    gB.connect(master);
-    gC.connect(master);
-
-    // Subtle vibrato/tremolo for that gym-horn character.
-    const lfo = ctx.createOscillator();
-    const lfoGain = ctx.createGain();
-    lfo.type = 'sine';
-    lfo.frequency.setValueAtTime(isManual ? 12 : isShot ? 26 : 18, ctx.currentTime);
-    lfoGain.gain.setValueAtTime(isManual ? 15 : isShot ? 8 : 12, ctx.currentTime);
-    lfo.connect(lfoGain);
-    lfoGain.connect(oscA.frequency);
-
-    oscA.start();
-    oscB.start();
-    oscC.start();
-    lfo.start();
-
-    oscA.stop(stopAt);
-    oscB.stop(stopAt);
-    oscC.stop(stopAt);
-    lfo.stop(stopAt);
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch((e) => {
+        console.warn('Buzzer unavailable:', e);
+      });
+    }
   } catch (e) {
-    // Browser may block AudioContext before user interaction — silently skip
     console.warn('Buzzer unavailable:', e);
   }
 }
@@ -1109,6 +1075,7 @@ function removeBackgroundImage() {
 
 function toggleMute() {
   state.muted = !state.muted;
+  if (state.muted) stopBuzzerPlayback();
   renderSoundState();
   addLog(state.muted ? 'Buzzer muted' : 'Buzzer enabled');
   persistRuntimeState();
