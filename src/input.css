@@ -24,15 +24,31 @@
   }
 
   .font-varsity-numeric {
-    font-family: 'Impact', 'Haettenschweiler', 'Arial Black', 'Franklin Gothic Heavy', 'Segoe UI Black', sans-serif;
+    font-family: 'Bahnschrift Condensed', 'Arial Narrow', 'Haettenschweiler', 'Arial Black', sans-serif;
     letter-spacing: 0.02em;
     line-height: 0.95;
     font-variant-numeric: lining-nums tabular-nums;
   }
 
+  .font-score-display {
+    font-family: 'Bahnschrift Condensed', 'Arial Narrow', 'Haettenschweiler', 'Arial Black', sans-serif;
+    font-stretch: condensed;
+    letter-spacing: 0.01em;
+    line-height: 0.86;
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+
+  .font-clock-display {
+    font-family: 'DIN Alternate', 'Bahnschrift', 'Roboto Mono', 'Courier New', monospace;
+    font-stretch: condensed;
+    letter-spacing: 0.02em;
+    line-height: 0.9;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
   .font-varsity-clock {
-    letter-spacing: 0;
-    transform: scaleX(0.94);
+    letter-spacing: 0.01em;
+    transform: scaleX(0.96);
     transform-origin: center;
     display: inline-block;
   }
@@ -43,6 +59,22 @@
 
   .away-accent {
     color: var(--away-color);
+  }
+
+  .team-name-wrap {
+    min-width: 0;
+  }
+
+  .team-name {
+    max-width: 100%;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    text-align: center;
+    line-height: 1.05;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
 
   .home-score-size,
@@ -64,6 +96,29 @@
   .display-only #modal,
   .display-only #edit-banner {
     display: none !important;
+  }
+
+  .display-only .team-logo-empty {
+    display: none;
+  }
+
+  .display-only #status-display {
+    color: var(--app-fg);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+  }
+
+  .display-only #auto-advance-overlay {
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0.62);
+  }
+
+  .display-only #auto-advance-overlay .auto-advance-card {
+    max-width: 42rem;
+    padding: 1.5rem 2rem;
+  }
+
+  .display-only #auto-advance-overlay #auto-advance-subtitle {
+    display: none;
   }
 
   .app-shell {

@@ -99,6 +99,9 @@ const state = {
 const FINAL_24S_MS = 24000;
 const SNAP_GRID_DRAG_PX = 16;
 const SNAP_GRID_RESIZE_PX = 32;
+const RUNTIME_PERSIST_INTERVAL_MS = 5000;
+const MAX_IMAGE_FILE_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION = 1600;
 const BUZZER_AUDIO_SRC = 'Official%20NBA%20Horn%20SFX.mp3';
 const BUZZER_CLIP_SECONDS = {
   shot: 0.48,
@@ -107,6 +110,10 @@ const BUZZER_CLIP_SECONDS = {
 
 let buzzerAudio = null;
 let buzzerStopTimeoutId = null;
+const runtimeChannel = typeof BroadcastChannel === 'function'
+  ? new BroadcastChannel('courtcast-runtime-v1')
+  : null;
+let displayStatusTimeoutId = null;
 
 const VISIBILITY_GROUPS = [
   { ids: ['custom-text-1-wrap'], btnId: 'toggle-custom-text-1' },
@@ -408,8 +415,12 @@ function renderTeams() {
   root.style.setProperty('--home-color', homeColor);
   root.style.setProperty('--away-color', awayColor);
 
-  document.getElementById('home-name').textContent = homeName.toUpperCase();
-  document.getElementById('away-name').textContent = awayName.toUpperCase();
+  const homeNameElement = document.getElementById('home-name');
+  const awayNameElement = document.getElementById('away-name');
+  homeNameElement.textContent = homeName.toUpperCase();
+  awayNameElement.textContent = awayName.toUpperCase();
+  homeNameElement.title = homeName;
+  awayNameElement.title = awayName;
   document.getElementById('modal-home-name').textContent = homeName.toUpperCase();
   document.getElementById('modal-away-name').textContent = awayName.toUpperCase();
 
@@ -516,10 +527,12 @@ function renderLogos() {
 function renderLogo(team) {
   const el = document.getElementById(`${team}-logo`);
   const preview = document.getElementById(`${team}-logo-preview`);
+  const wrapper = document.getElementById(`${team}-logo-wrap`);
   const src = state.teamLogos[team];
   if (src) {
     el.src = src;
     el.classList.remove('hidden');
+    if (wrapper) wrapper.classList.remove('team-logo-empty');
     if (preview) {
       preview.src = src;
       preview.classList.remove('hidden');
@@ -527,6 +540,7 @@ function renderLogo(team) {
   } else {
     el.removeAttribute('src');
     el.classList.add('hidden');
+    if (wrapper) wrapper.classList.add('team-logo-empty');
     if (preview) {
       preview.removeAttribute('src');
       preview.classList.add('hidden');
@@ -746,10 +760,17 @@ function buildStateSnapshot() {
 
 function persistRuntimeState() {
   if (!state.hydrated) return;
+  const snapshot = buildStateSnapshot();
   try {
-    localStorage.setItem(STORAGE_KEYS.runtime, JSON.stringify(buildStateSnapshot()));
-  } catch (_) {
-    // Ignore quota/write errors and continue running without persistence.
+    localStorage.setItem(STORAGE_KEYS.runtime, JSON.stringify(snapshot));
+  } catch (error) {
+    console.warn('Runtime state could not be saved:', error);
+    updateStatus('Storage full - game is running without persistence');
+  }
+  try {
+    if (runtimeChannel) runtimeChannel.postMessage(snapshot);
+  } catch (error) {
+    console.warn('Live display synchronization is unavailable:', error);
   }
 }
 
@@ -765,6 +786,12 @@ function loadRuntimeState() {
 }
 
 function subscribeCrossWindowSync() {
+  if (runtimeChannel) {
+    runtimeChannel.addEventListener('message', (event) => {
+      applyStateSnapshot(event.data);
+    });
+  }
+
   window.addEventListener('storage', (event) => {
     if (event.key === STORAGE_KEYS.runtime && event.newValue) {
       try {
@@ -783,8 +810,24 @@ function subscribeCrossWindowSync() {
 }
 
 function updateStatus(msg) {
-  if (isDisplayMode) return;
-  document.getElementById('status-text').textContent = msg;
+  const statusText = document.getElementById('status-text');
+  const statusDisplay = document.getElementById('status-display');
+  if (!statusText || !statusDisplay) return;
+
+  statusText.textContent = msg;
+  if (!isDisplayMode) return;
+
+  const isQuietStatus = msg === 'Press Space to Start'
+    || msg === 'Clock running'
+    || msg === 'Clock running - Shot clock off';
+  statusDisplay.classList.toggle('hidden', isQuietStatus);
+  if (!isQuietStatus) {
+    if (displayStatusTimeoutId) window.clearTimeout(displayStatusTimeoutId);
+    displayStatusTimeoutId = window.setTimeout(() => {
+      statusDisplay.classList.add('hidden');
+      displayStatusTimeoutId = null;
+    }, 4500);
+  }
 }
 
 function getPeriodLabel() {
@@ -1047,19 +1090,50 @@ function setBackgroundMode(mode) {
   persistRuntimeState();
 }
 
+function readImageForStorage(file, onLoad) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    if (file.type === 'image/svg+xml') {
+      onLoad(reader.result);
+      return;
+    }
+
+    const image = new Image();
+    image.onload = () => {
+      const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const context = canvas.getContext('2d');
+      if (!context) {
+        onLoad(reader.result);
+        return;
+      }
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      onLoad(canvas.toDataURL('image/webp', 0.82));
+    };
+    image.onerror = () => onLoad(reader.result);
+    image.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function loadBackgroundImageFromInput(file) {
   if (!file) return;
 
-  const reader = new FileReader();
-  reader.onload = () => {
-    state.customBackground.imageUrl = reader.result;
+  if (!file.type.startsWith('image/') || file.size > MAX_IMAGE_FILE_BYTES) {
+    updateStatus('Background image must be an image under 5 MB');
+    return;
+  }
+
+  readImageForStorage(file, (dataUrl) => {
+    state.customBackground.imageUrl = dataUrl;
     state.customBackground.mode = 'image';
     renderBackgroundModeButtons();
     renderAppBackgroundVisual();
     addLog('Background image updated');
     persistRuntimeState();
-  };
-  reader.readAsDataURL(file);
+  });
 }
 
 function removeBackgroundImage() {
@@ -1963,14 +2037,18 @@ function exportGameSummary() {
 
 function loadLogoFromInput(team, file) {
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    state.teamLogos[team] = reader.result;
+
+  if (!file.type.startsWith('image/') || file.size > MAX_IMAGE_FILE_BYTES) {
+    updateStatus('Team logo must be an image under 5 MB');
+    return;
+  }
+
+  readImageForStorage(file, (dataUrl) => {
+    state.teamLogos[team] = dataUrl;
     renderLogo(team);
     addLog(`${teamLabel(team)} logo updated`);
     persistRuntimeState();
-  };
-  reader.readAsDataURL(file);
+  });
 }
 
 function removeLogo(team) {
@@ -2046,10 +2124,7 @@ function init() {
   renderGameLog();
   updateShotClockLabels();
   if (isDisplayMode) {
-    const statusDisplay = document.getElementById('status-display');
-    const statusText = document.getElementById('status-text');
-    if (statusText) statusText.textContent = '';
-    if (statusDisplay) statusDisplay.classList.add('hidden');
+    document.title = 'CourtCast Display';
   }
   renderSnapMode();
   updateStatus('Press Space to Start');
@@ -2070,7 +2145,7 @@ function init() {
   if (!isDisplayMode) {
     setInterval(() => {
       if (state.running) persistRuntimeState();
-    }, 1000);
+    }, RUNTIME_PERSIST_INTERVAL_MS);
   }
 
   persistRuntimeState();

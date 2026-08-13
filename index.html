@@ -14,8 +14,8 @@
     EDIT MODE - Drag/resize with snap (S toggles), or use Alt + mouse wheel to resize text | Press <kbd class="bg-black/20 px-1 rounded">E</kbd> to exit
   </div>
 
-  <div id="auto-advance-overlay"
-       class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm items-center justify-center p-6">
+    <div id="auto-advance-overlay"
+      class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm items-center justify-center p-6">
     <div class="auto-advance-card rounded-3xl px-8 py-10 text-center max-w-xl w-full">
       <div class="text-xs font-black uppercase tracking-[0.35em] text-gray-400 mb-3">Period Complete</div>
       <div id="auto-advance-title" class="font-digital text-4xl md:text-6xl font-black mb-4">End of Quarter 1</div>
@@ -77,13 +77,13 @@
           <img id="home-logo" alt="Home team logo" class="hidden" />
         </div>
       </div>
-       <div id="home-name-wrap" class="draggable flex items-center justify-center max-w-full">
+       <div id="home-name-wrap" class="draggable team-name-wrap flex items-center justify-center w-full max-w-full overflow-hidden">
         <div id="home-name"
-         class="size-adjustable home-accent text-3xl font-black uppercase tracking-widest whitespace-nowrap inline-block">HOME</div>
+         class="size-adjustable team-name home-accent text-3xl font-black uppercase tracking-widest inline-block">HOME</div>
       </div>
       <div id="home-score-wrap" class="draggable flex items-center justify-center w-full">
         <div id="home-score"
-          class="size-adjustable home-accent home-score-size font-varsity-numeric font-black leading-none">0</div>
+          class="size-adjustable home-accent home-score-size font-score-display font-black leading-none">0</div>
       </div>
     </div>
 
@@ -95,7 +95,7 @@
         <div id="period-label"
              class="text-xs font-bold uppercase tracking-[0.3em] control-muted mb-0.5">Quarter</div>
         <div id="period-number"
-             class="size-adjustable font-varsity-numeric text-5xl font-black text-white leading-none">1</div>
+             class="size-adjustable font-score-display text-5xl font-black text-white leading-none">1</div>
       </div>
 
       <div id="possession-display" class="draggable text-center">
@@ -118,7 +118,7 @@
       <div id="game-clock-wrap" class="draggable text-center">
         <div class="text-xs font-bold uppercase tracking-[0.3em] control-muted mb-1">Game Clock</div>
         <div id="game-clock"
-             class="size-adjustable game-clock-size font-varsity-numeric font-varsity-clock font-black text-white leading-none">10:00</div>
+             class="size-adjustable game-clock-size font-clock-display font-varsity-clock font-black text-white leading-none">10:00</div>
       </div>
 
       <div id="custom-text-1-wrap" class="draggable text-center">
@@ -133,7 +133,7 @@
       <div id="shot-clock-wrap" class="draggable text-center">
         <div class="text-xs font-bold uppercase tracking-[0.3em] control-muted mb-1">Shot Clock</div>
         <div id="shot-clock"
-             class="size-adjustable shot-clock-size font-varsity-numeric font-varsity-clock font-black text-amber-400 leading-none">24</div>
+             class="size-adjustable shot-clock-size font-clock-display font-varsity-clock font-black text-amber-400 leading-none">24</div>
       </div>
 
       <div id="custom-text-2-wrap" class="draggable text-center">
@@ -146,8 +146,9 @@
 
       <!-- Status -->
       <div id="status-display" class="draggable text-center">
-        <div id="status-text"
-             class="text-sm font-semibold control-muted uppercase tracking-widest">
+              <div id="status-text"
+                class="text-sm font-semibold control-muted uppercase tracking-widest"
+                aria-live="polite">
           Press Space to Start
         </div>
       </div>
@@ -169,13 +170,13 @@
           <img id="away-logo" alt="Away team logo" class="hidden" />
         </div>
       </div>
-       <div id="away-name-wrap" class="draggable flex items-center justify-center max-w-full">
+       <div id="away-name-wrap" class="draggable team-name-wrap flex items-center justify-center w-full max-w-full overflow-hidden">
         <div id="away-name"
-         class="size-adjustable away-accent text-3xl font-black uppercase tracking-widest whitespace-nowrap inline-block">AWAY</div>
+         class="size-adjustable team-name away-accent text-3xl font-black uppercase tracking-widest inline-block">AWAY</div>
       </div>
       <div id="away-score-wrap" class="draggable flex items-center justify-center w-full">
         <div id="away-score"
-          class="size-adjustable away-accent away-score-size font-varsity-numeric font-black leading-none">0</div>
+          class="size-adjustable away-accent away-score-size font-score-display font-black leading-none">0</div>
       </div>
     </div>
 
