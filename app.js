@@ -396,12 +396,20 @@ function fitText(el) {
   }
   const parent = el.parentElement;
   if (!parent) return;
-  const maxW = parent.getBoundingClientRect().width;
-  if (!maxW) return;
-  if (el.getBoundingClientRect().width <= maxW) return;
+  const parentRect = parent.getBoundingClientRect();
+  const maxW = parentRect.width;
+  const maxH = parentRect.height;
+  if (!maxW && !maxH) return;
+  // Height matters too: multi-line clamped text (e.g. team names) can still render
+  // taller than a fixed/scaled wrap and get visually clipped by its overflow:hidden.
+  const overflows = () => {
+    const elRect = el.getBoundingClientRect();
+    return (maxW && elRect.width > maxW + 0.5) || (maxH && elRect.height > maxH + 0.5);
+  };
+  if (!overflows()) return;
   let size = parseFloat(window.getComputedStyle(el).fontSize) || 16;
   const min = 10;
-  while (el.getBoundingClientRect().width > maxW && size > min) {
+  while (overflows() && size > min) {
     size = Math.max(min, size - 0.5);
     el.style.fontSize = size + 'px';
     el.dataset.autoFit = 'true';
@@ -1610,9 +1618,11 @@ function savePositions() {
     scoreboardHeight: sbHeight,
   };
 
+  // Capture the computed size (not just an explicit inline one) for every element so the
+  // box-to-font ratio seen in edit mode can be reproduced exactly when the layout is scaled.
   const fontSizes = {};
   document.querySelectorAll('.size-adjustable[id]').forEach(el => {
-    if (el.style.fontSize) fontSizes[el.id] = el.style.fontSize;
+    fontSizes[el.id] = el.style.fontSize || window.getComputedStyle(el).fontSize;
   });
   try { localStorage.setItem(STORAGE_KEYS.positions, JSON.stringify(positions)); } catch (_) {}
   try { localStorage.setItem(STORAGE_KEYS.fontSizes, JSON.stringify(fontSizes)); } catch (_) {}
@@ -1624,6 +1634,9 @@ function getDraggableIds() {
 }
 
 function loadPositions() {
+  // Declared here (not inside the try block below) so the font-scaling step
+  // further down can still read the same scale factor used for box geometry.
+  let layoutScale = 1;
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEYS.positions) || 'null');
     if (!saved || Object.keys(saved).length === 0) return false;
@@ -1656,7 +1669,7 @@ function loadPositions() {
     // This prevents noticeable drift between control and display surfaces with different aspect ratios.
     const baseWidth = meta ? Math.max(1, meta.scoreboardWidth) : sbWidth;
     const baseHeight = meta ? Math.max(1, meta.scoreboardHeight) : sbHeight;
-    const layoutScale = Math.min(sbWidth / baseWidth, sbHeight / baseHeight);
+    layoutScale = Math.min(sbWidth / baseWidth, sbHeight / baseHeight);
     const offsetX = meta ? (sbWidth - baseWidth * layoutScale) / 2 : 0;
     const offsetY = meta ? (sbHeight - baseHeight * layoutScale) / 2 : 0;
 
@@ -1711,16 +1724,16 @@ function loadPositions() {
   }
 
   try {
-    const fontSizes = JSON.parse(localStorage.getItem(STORAGE_KEYS.fontSizes) || 'null');
-    if (!fontSizes) return true;
-    Object.entries(fontSizes).forEach(([id, size]) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const parsedSize = parseFloat(size);
-      const shouldScaleWithLayout = id === 'home-score' || id === 'away-score';
-      el.style.fontSize = shouldScaleWithLayout && Number.isFinite(parsedSize)
-        ? `${Math.round(parsedSize * layoutScale * 100) / 100}px`
-        : size;
+    const fontSizes = JSON.parse(localStorage.getItem(STORAGE_KEYS.fontSizes) || 'null') || {};
+    // Scale every size-adjustable element, even ones missing from (older/stale) saved
+    // fontSizes data — fall back to the element's current computed size in that case.
+    // Otherwise an un-scaled font stays fixed while its box shrinks and clips the text.
+    document.querySelectorAll('.size-adjustable[id]').forEach((el) => {
+      const stored = parseFloat(fontSizes[el.id]);
+      const baseSize = Number.isFinite(stored)
+        ? stored
+        : parseFloat(window.getComputedStyle(el).fontSize) || 16;
+      el.style.fontSize = `${Math.round(baseSize * layoutScale * 100) / 100}px`;
       delete el.dataset.autoFit;
     });
   } catch (_) {
@@ -1800,10 +1813,13 @@ function handleEditableResize(e) {
   delete target.dataset.autoFit;
   editSessionDirty = true;
 
-  // When enlarging, let the container grow to track the text.
-  // When the user shrinks, fitText ensures the text respects the container boundary.
+  // When enlarging, let the container grow (both axes) to track the text —
+  // otherwise a frozen height makes fitText immediately shrink it back down.
   const draggable = target.closest('.draggable');
-  if (draggable) draggable.style.width = 'fit-content';
+  if (draggable) {
+    draggable.style.width = 'fit-content';
+    draggable.style.height = 'fit-content';
+  }
   scheduleWheelResizeSave();
   requestAnimationFrame(() => fitText(target));
 }
@@ -2118,6 +2134,8 @@ function init() {
     scoreboard.style.position = '';
     scoreboard.classList.add('grid', 'grid-cols-3', 'gap-4');
   }
+  fitText(document.getElementById('home-name'));
+  fitText(document.getElementById('away-name'));
   renderPossession();
   renderSoundState();
   renderLogos();
