@@ -130,6 +130,14 @@
     transition: background-color 0.25s ease, color 0.25s ease;
   }
 
+  /* These were hardcoded white; tie them to the active theme's foreground color. */
+  #period-number,
+  #game-clock,
+  #custom-text-1,
+  #custom-text-2 {
+    color: var(--app-fg);
+  }
+
   .app-shell.background-image-mode {
     background-size: cover !important;
     background-position: center !important;

@@ -1282,6 +1282,53 @@ function toggleSnapMode() {
 
 let editSessionDirty = false;
 let editSessionHadCustomLayout = false;
+// Ids touched (dragged/resized) by the operator during the current edit session.
+let editSessionMovedIds = new Set();
+// Wrap id -> position/size captured just before auto-centering, for revert on exit.
+let customTextEditPriorPositions = {};
+
+const CUSTOM_TEXT_WRAP_IDS = ['custom-text-1-wrap', 'custom-text-2-wrap', 'custom-text-3-wrap'];
+
+// Stacks the (still-visible) custom text wraps centered in the scoreboard for easy editing.
+function centerCustomTextsForEdit(scoreboard, sbRect) {
+  const gap = 12;
+  const wraps = CUSTOM_TEXT_WRAP_IDS
+    .map((id) => document.getElementById(id))
+    .filter((el) => el && el.style.position === 'absolute' && !el.classList.contains('hidden'));
+
+  const totalHeight = wraps.reduce((sum, el) => sum + el.offsetHeight, 0) + gap * Math.max(0, wraps.length - 1);
+  let cursorTop = (sbRect.height - totalHeight) / 2;
+
+  wraps.forEach((el) => {
+    customTextEditPriorPositions[el.id] = {
+      left: el.style.left,
+      top: el.style.top,
+      width: el.style.width,
+      height: el.style.height,
+    };
+
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    el.style.left = `${Math.max(0, (sbRect.width - w) / 2)}px`;
+    el.style.top = `${Math.max(0, cursorTop)}px`;
+    cursorTop += h + gap;
+  });
+}
+
+// Reverts any custom text wrap the operator didn't move/resize this edit session.
+function restoreUnmovedCustomTexts() {
+  CUSTOM_TEXT_WRAP_IDS.forEach((id) => {
+    if (editSessionMovedIds.has(id)) return;
+    const prior = customTextEditPriorPositions[id];
+    const el = document.getElementById(id);
+    if (!el || !prior) return;
+    el.style.left = prior.left;
+    el.style.top = prior.top;
+    el.style.width = prior.width;
+    el.style.height = prior.height;
+  });
+  customTextEditPriorPositions = {};
+}
 
 function toggleEditMode() {
   if (isDisplayMode) return;
@@ -1292,6 +1339,8 @@ function toggleEditMode() {
   if (state.editMode) {
     editSessionDirty = false;
     editSessionHadCustomLayout = !scoreboard.classList.contains('grid');
+    editSessionMovedIds = new Set();
+    customTextEditPriorPositions = {};
 
     // Ensure children anchor to the scoreboard before any edit-mode absolute rules apply.
     scoreboard.style.position = 'relative';
@@ -1322,6 +1371,8 @@ function toggleEditMode() {
       el.addEventListener('mousedown', onDragStart);
     });
 
+    centerCustomTextsForEdit(scoreboard, sbRect);
+
     // Switch container to a free-form canvas
     scoreboard.classList.remove('grid', 'grid-cols-3', 'gap-4');
     document.body.classList.add('edit-mode');
@@ -1330,6 +1381,8 @@ function toggleEditMode() {
     scoreboard.querySelectorAll('.draggable').forEach(el => {
       el.removeEventListener('mousedown', onDragStart);
     });
+
+    restoreUnmovedCustomTexts();
 
     if (editSessionDirty) {
       savePositions();
@@ -1533,6 +1586,7 @@ function onResizeMove(e) {
   }
 
   editSessionDirty = true;
+  if (resizeState.el.id) editSessionMovedIds.add(resizeState.el.id);
 }
 
 function onResizeEnd() {
@@ -1570,6 +1624,7 @@ function onDragMove(e) {
   dragState.el.style.left = `${nextLeft}px`;
   dragState.el.style.top = `${nextTop}px`;
   editSessionDirty = true;
+  if (dragState.el.id) editSessionMovedIds.add(dragState.el.id);
 }
 
 function onDragEnd() {
@@ -1819,6 +1874,7 @@ function handleEditableResize(e) {
   if (draggable) {
     draggable.style.width = 'fit-content';
     draggable.style.height = 'fit-content';
+    if (draggable.id) editSessionMovedIds.add(draggable.id);
   }
   scheduleWheelResizeSave();
   requestAnimationFrame(() => fitText(target));
