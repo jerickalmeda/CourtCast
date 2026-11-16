@@ -36,6 +36,7 @@ CourtCast is a real-time basketball scoreboard overlay built for live games, eve
 
 - Node.js 18+ (Node 22 works)
 - npm
+- Node.js 20+ for running Playwright tests
 
 ### Install
 
@@ -60,6 +61,17 @@ Generates minified style.css:
 ```bash
 npm run build
 ```
+
+### Browser Tests
+
+Install the test browser once, then run the suite:
+
+```bash
+npx playwright install chromium
+npm test
+```
+
+The tests start a local server on port 4173 and also check that the app opens directly from disk while offline. Playwright and its browser are only needed for development, not to run CourtCast.
 
 ## Running the App
 
@@ -87,6 +99,8 @@ For live operation, one common setup is:
 
 - CourtCast is designed for offline operation.
 - Runtime state and layout settings are stored in localStorage.
+- Applying settings preserves clocks already in progress. A new duration updates a paused clock that is still at its previous full value; otherwise it applies on the next reset.
+- Full Reset and clearing the game log require confirmation.
 - Main scoreboard display is intentionally simplified for readability.
 
 ## Roadmap Ideas

@@ -27,3 +27,5 @@ Thumbs.db
 .temp/
 tmp/
 coverage/
+test-results/
+playwright-report/

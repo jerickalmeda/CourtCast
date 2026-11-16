@@ -4,9 +4,11 @@
   "description": "100% offline basketball scoreboard",
   "scripts": {
     "build": "tailwindcss -i ./src/input.css -o ./style.css --minify",
-    "dev": "tailwindcss -i ./src/input.css -o ./style.css --watch"
+    "dev": "tailwindcss -i ./src/input.css -o ./style.css --watch",
+    "test": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "tailwindcss": "^3.4.0"
   }
 }
