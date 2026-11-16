@@ -970,6 +970,7 @@ function advancePeriod() {
 }
 
 function fullReset() {
+  if (!window.confirm('Reset the game? Scores, clocks, and the game log will be cleared.')) return;
   gameTimer.pause();
   shotTimer.pause();
   state.running = false;
@@ -1020,7 +1021,21 @@ function toggleModal() {
 }
 
 function applySettings() {
+  const numericInputs = ['input-periods', 'input-period-duration', 'input-shot-full', 'input-shot-offensive', 'input-team-timeouts']
+    .map((id) => document.getElementById(id));
+  for (const input of numericInputs) {
+    input.setCustomValidity('');
+    if (input.value === '') {
+      input.setCustomValidity('Enter a whole number.');
+    }
+    if (!input.reportValidity()) return;
+  }
+
   const c = state.config;
+  const previousPeriodDuration = c.periodDuration;
+  const previousShotClockFull = c.shotClockFull;
+  const gameClockIsFull = gameTimer.getRemaining() === previousPeriodDuration * 60 * 1000;
+  const shotClockIsFull = shotTimer.getRemaining() === previousShotClockFull * 1000;
   c.homeName = document.getElementById('input-home-name').value.trim() || 'HOME';
   c.awayName = document.getElementById('input-away-name').value.trim() || 'AWAY';
   c.homeColor = document.getElementById('input-home-color').value;
@@ -1040,8 +1055,10 @@ function applySettings() {
   state.awayTimeouts = Math.min(state.awayTimeouts, c.teamTimeouts);
   renderScores();
 
-  if (!state.running) {
+  if (!state.running && gameClockIsFull && c.periodDuration !== previousPeriodDuration) {
     gameTimer.reset(c.periodDuration * 60 * 1000);
+  }
+  if (!state.running && !state.shotClockAutoOff && shotClockIsFull && c.shotClockFull !== previousShotClockFull) {
     resetShotClock('full');
   }
 
@@ -2042,6 +2059,7 @@ function renderGameLog() {
 }
 
 function clearGameLog() {
+  if (!window.confirm('Clear the game log? This cannot be undone.')) return;
   state.gameLog = [];
   renderGameLog();
   addLog('Game log cleared');
