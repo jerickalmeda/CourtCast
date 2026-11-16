@@ -503,6 +503,27 @@ test('both logo sizes persist, scale, and reset independently', async ({ page, c
   }
 });
 
+test('Alt+wheel keeps resizing scores, names and clocks across repeated ticks', async ({ page }) => {
+  await page.keyboard.press('e');
+  for (const id of ['home-score', 'home-name', 'game-clock']) {
+    const target = page.locator(`#${id}`);
+    const start = await target.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    const box = await target.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.keyboard.down('Alt');
+    for (let i = 0; i < 5; i++) {
+      await page.mouse.wheel(0, -100);
+      await page.waitForTimeout(60);
+    }
+    await page.keyboard.up('Alt');
+    const grown = await target.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    expect(grown, id).toBeGreaterThanOrEqual(start + 12);
+  }
+  await page.keyboard.press('e');
+  await page.reload();
+  expect(await page.locator('#home-score').evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(185);
+});
+
 test('older saved layouts without logo dimensions remain compatible', async ({ page }) => {
   await page.keyboard.press('e');
   const handle = await page.locator('#away-logo-wrap .resize-handle-nw').boundingBox();

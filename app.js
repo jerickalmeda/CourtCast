@@ -1986,6 +1986,8 @@ function loadDefaultLayout() {
 }
 
 let pendingWheelResizeSave = null;
+let wheelResizeTarget = null;
+let wheelResizeUntil = 0;
 
 function scheduleWheelResizeSave() {
   if (pendingWheelResizeSave) cancelAnimationFrame(pendingWheelResizeSave);
@@ -1997,8 +1999,15 @@ function scheduleWheelResizeSave() {
 
 function handleEditableResize(e) {
   if (!state.editMode || !e.altKey) return;
-  const target = e.target.closest('.size-adjustable');
+  // Overlapping wrappers and resize handles can sit above the text, so search the whole stack under the pointer.
+  let target = document.elementsFromPoint(e.clientX, e.clientY)
+    .map((node) => node.closest('.size-adjustable'))
+    .find(Boolean);
+  // Resizing shrinks the box away from the pointer, so keep the last target while scrolling continues.
+  if (!target && wheelResizeTarget && performance.now() < wheelResizeUntil) target = wheelResizeTarget;
   if (!target) return;
+  wheelResizeTarget = target;
+  wheelResizeUntil = performance.now() + 800;
   e.preventDefault();
 
   const current = parseFloat(window.getComputedStyle(target).fontSize);
