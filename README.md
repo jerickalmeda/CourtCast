@@ -62,9 +62,19 @@ Generates minified style.css:
 npm run build
 ```
 
+### Offline Release Build
+
+Creates a distributable `dist` folder with minified JavaScript, the compiled stylesheet, and the buzzer audio. Open `dist/index.html` in a browser; Node.js is only needed to build it.
+
+```bash
+npm run build:release
+```
+
+This reduces file size and casual readability, but JavaScript delivered to a browser can still be inspected and copied. Do not treat minification as encryption or copy protection.
+
 ### Browser Tests
 
-Install the test browser once, then run the suite:
+Install the test browser once, then run the suite. Tests build the release folder before starting:
 
 ```bash
 npx playwright install chromium

@@ -565,3 +565,27 @@ test('opens directly from disk without a network connection', async ({ page }) =
   expect(await page.evaluate(() => gameTimer.getRemaining())).toBe(30000);
   await expect(page.locator('#away-logo')).toBeVisible();
 });
+
+test('minified release works offline with keyboard and inline controls', async ({ page }) => {
+  await page.goto('/dist/index.html');
+  await page.context().setOffline(true);
+  await expect(page.locator('#game-clock')).toHaveText('10:00');
+  await expect(page.locator('script[src*="app.min.js"]')).toHaveCount(1);
+  await page.keyboard.press('h');
+  await expect(page.locator('#home-score')).toHaveText('01');
+  await page.getByRole('button', { name: 'Menu (M)' }).click();
+  await expect(page.locator('#modal')).toBeVisible();
+  await page.getByRole('button', { name: 'Correct Clocks' }).click();
+  await page.getByLabel('Game clock (mm:ss.t)').fill('00:45.0');
+  await page.getByRole('button', { name: 'Apply game clock' }).click();
+  expect(await page.evaluate(() => gameTimer.getRemaining())).toBe(45000);
+});
+
+test('minified release runs directly from disk without network access', async ({ page }) => {
+  await page.context().setOffline(true);
+  await page.goto(pathToFileURL(path.resolve(__dirname, '../dist/index.html')).href);
+  await expect(page.locator('script[src*="app.min.js"]')).toHaveCount(1);
+  await expect(page.locator('#game-clock')).toHaveText('10:00');
+  await page.keyboard.press('k');
+  await expect(page.locator('#away-score')).toHaveText('01');
+});

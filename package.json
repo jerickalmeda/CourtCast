@@ -4,11 +4,14 @@
   "description": "100% offline basketball scoreboard",
   "scripts": {
     "build": "tailwindcss -i ./src/input.css -o ./style.css --minify",
+    "build:release": "npm run build && node ./scripts/build-release.js",
     "dev": "tailwindcss -i ./src/input.css -o ./style.css --watch",
+    "pretest": "npm run build:release",
     "test": "playwright test"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",
-    "tailwindcss": "^3.4.0"
+    "tailwindcss": "^3.4.0",
+    "terser": "^5.51.2"
   }
 }
