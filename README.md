@@ -99,7 +99,10 @@ For live operation, one common setup is:
 
 - CourtCast is designed for offline operation.
 - Runtime state and layout settings are stored in localStorage.
+- Team logos are processed on upload. Wait for the logo to be ready before applying settings; invalid images leave the previous logo unchanged. In Edit Mode, drag the logo's resize handles to change its size; the layout saves when you exit Edit Mode.
 - Applying settings preserves clocks already in progress. A new duration updates a paused clock that is still at its previous full value; otherwise it applies on the next reset.
+- Use **Correct Clocks** in the Control Hub or on the period-end screen to enter an exact game or shot clock time, or adjust a draft in one-second or one-tenth-second steps. Opening the editor pauses both clocks; closing it does not resume them. Apply each clock independently, then resume with Space.
+- Applying a shot-clock correction turns it on even if it was automatically switched off. Later shot-clock resets and possession changes still follow the existing final-24-seconds rule. An active shot clock at zero must be corrected or reset before play can resume.
 - Full Reset and clearing the game log require confirmation.
 - Main scoreboard display is intentionally simplified for readability.
 

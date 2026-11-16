@@ -812,7 +812,8 @@ function subscribeCrossWindowSync() {
     }
 
     if ((event.key === STORAGE_KEYS.positions || event.key === STORAGE_KEYS.fontSizes) && !state.editMode) {
-      loadPositions();
+      if (event.key === STORAGE_KEYS.positions && !event.newValue) resetLayout(false);
+      else loadPositions();
     }
   });
 }
@@ -863,6 +864,10 @@ function masterToggle() {
     persistRuntimeState();
   } else {
     if (gameTimer.getRemaining() <= 0) return;
+    if (!state.shotClockAutoOff && shotTimer.getRemaining() <= 0) {
+      updateStatus('Shot clock is at zero - correct or reset it before resuming');
+      return;
+    }
     gameTimer.start();
     if (!syncShotClockEndgameRule()) {
       shotTimer.start();
@@ -873,6 +878,91 @@ function masterToggle() {
     state.running = true;
     persistRuntimeState();
   }
+}
+
+let clockCorrectionOpen = false;
+let clockCorrectionTrigger = null;
+
+function formatCorrectionTime(milliseconds, clock) {
+  const tenths = Math.floor(Math.max(0, milliseconds) / 100);
+  if (clock === 'shot') return `${Math.floor(tenths / 10)}.${tenths % 10}`;
+  const seconds = Math.floor(tenths / 10);
+  return `${pad(Math.floor(seconds / 60))}:${pad(seconds % 60)}.${tenths % 10}`;
+}
+
+function parseCorrectionTime(value, clock) {
+  const match = clock === 'game'
+    ? /^(\d{1,2}):([0-5]\d)(?:\.(\d))?$/.exec(value.trim())
+    : /^(\d{1,2})(?:\.(\d))?$/.exec(value.trim());
+  if (!match) return null;
+  const tenths = clock === 'game'
+    ? (Number(match[1]) * 60 + Number(match[2])) * 10 + Number(match[3] || 0)
+    : Number(match[1]) * 10 + Number(match[2] || 0);
+  return tenths * 100;
+}
+
+function openClockCorrection() {
+  if (isDisplayMode || clockCorrectionOpen) return;
+  clockCorrectionTrigger = document.activeElement;
+  if (state.running) masterToggle();
+  clockCorrectionOpen = true;
+  ['game', 'shot'].forEach((clock) => {
+    const input = document.getElementById(`${clock}-clock-correction`);
+    input.setCustomValidity('');
+    input.value = formatCorrectionTime(clock === 'game' ? gameTimer.getRemaining() : shotTimer.getRemaining(), clock);
+    document.getElementById(`${clock}-clock-correction-current`).textContent = `Current: ${input.value}`;
+  });
+  document.getElementById('shot-clock-correction-state').textContent = state.shotClockAutoOff ? 'Off - applying a correction turns it on' : 'On';
+  document.getElementById('clock-correction').classList.remove('hidden');
+  document.getElementById('game-clock-correction').focus();
+}
+
+function closeClockCorrection() {
+  if (!clockCorrectionOpen) return;
+  clockCorrectionOpen = false;
+  document.getElementById('clock-correction').classList.add('hidden');
+  if (clockCorrectionTrigger && clockCorrectionTrigger.isConnected && clockCorrectionTrigger.offsetParent !== null) {
+    clockCorrectionTrigger.focus();
+  } else {
+    document.getElementById('toolbar-shot-full').focus();
+  }
+  clockCorrectionTrigger = null;
+}
+
+function correctionInputValue(clock, allowZero = false) {
+  const input = document.getElementById(`${clock}-clock-correction`);
+  const milliseconds = parseCorrectionTime(input.value, clock);
+  input.setCustomValidity('');
+  if (milliseconds === null || (!allowZero && milliseconds === 0)) {
+    input.setCustomValidity(clock === 'game' ? 'Enter a positive time as mm:ss.t.' : 'Enter a positive time in seconds and tenths.');
+    input.reportValidity();
+    return null;
+  }
+  return milliseconds;
+}
+
+function stepClockCorrection(clock, delta) {
+  if (!clockCorrectionOpen || isDisplayMode) return;
+  const milliseconds = correctionInputValue(clock, true);
+  if (milliseconds === null) return;
+  const maximum = clock === 'game' ? 5999900 : 99900;
+  document.getElementById(`${clock}-clock-correction`).value = formatCorrectionTime(clamp(milliseconds + delta, 100, maximum), clock);
+}
+
+function applyClockCorrection(clock) {
+  if (!clockCorrectionOpen || isDisplayMode || state.running) return;
+  const milliseconds = correctionInputValue(clock);
+  if (milliseconds === null) return;
+  const timer = clock === 'game' ? gameTimer : shotTimer;
+  const previous = clock === 'shot' && state.shotClockAutoOff ? 'off' : formatCorrectionTime(timer.getRemaining(), clock);
+  if (clock === 'shot') state.shotClockAutoOff = false;
+  timer.reset(milliseconds);
+  if (clock === 'shot') document.getElementById('shot-clock-correction-state').textContent = 'On';
+  if (clock === 'game' && state.awaitingAdvance) hideAutoAdvanceOverlay(false);
+  document.getElementById(`${clock}-clock-correction`).value = formatCorrectionTime(milliseconds, clock);
+  document.getElementById(`${clock}-clock-correction-current`).textContent = `Current: ${formatCorrectionTime(milliseconds, clock)}`;
+  updateStatus('Paused - Press Space to resume');
+  addLog(`${clock === 'game' ? 'Game' : 'Shot'} clock corrected ${previous} -> ${formatCorrectionTime(milliseconds, clock)}`);
 }
 
 // ─── SCORE & FOULS ────────────────────────────────────────────────────────────
@@ -1021,6 +1111,7 @@ function toggleModal() {
 }
 
 function applySettings() {
+  if (pendingLogoUploads.size > 0) return;
   const numericInputs = ['input-periods', 'input-period-duration', 'input-shot-full', 'input-shot-offensive', 'input-team-timeouts']
     .map((id) => document.getElementById(id));
   for (const input of numericInputs) {
@@ -1115,31 +1206,43 @@ function setBackgroundMode(mode) {
   persistRuntimeState();
 }
 
-function readImageForStorage(file, onLoad) {
+function readImageForStorage(file, onLoad, onError) {
   const reader = new FileReader();
+  const fail = () => {
+    if (onError) onError();
+    else if (reader.result) onLoad(reader.result);
+  };
   reader.onload = () => {
-    if (file.type === 'image/svg+xml') {
+    if (file.type === 'image/svg+xml' && !onError) {
       onLoad(reader.result);
       return;
     }
-
     const image = new Image();
     image.onload = () => {
-      const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-      const context = canvas.getContext('2d');
-      if (!context) {
-        onLoad(reader.result);
-        return;
+      try {
+        if (file.type === 'image/svg+xml') {
+          onLoad(reader.result);
+          return;
+        }
+        const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const context = canvas.getContext('2d');
+        if (!context) {
+          onLoad(reader.result);
+          return;
+        }
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        onLoad(canvas.toDataURL('image/webp', 0.82));
+      } catch (_) {
+        fail();
       }
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      onLoad(canvas.toDataURL('image/webp', 0.82));
     };
-    image.onerror = () => onLoad(reader.result);
+    image.onerror = fail;
     image.src = reader.result;
   };
+  reader.onerror = fail;
   reader.readAsDataURL(file);
 }
 
@@ -1681,6 +1784,14 @@ function savePositions() {
         width: `${widthPx}px`,
         height: `${heightPx}px`,
       };
+      const logoFrame = el.querySelector('.team-logo-frame');
+      if (logoFrame) {
+        const logoRect = logoFrame.getBoundingClientRect();
+        if (logoRect.width > 0 && logoRect.height > 0) {
+          positions[el.id].logoWidth = logoRect.width;
+          positions[el.id].logoHeight = logoRect.height;
+        }
+      }
     }
   });
 
@@ -1790,6 +1901,11 @@ function loadPositions() {
       if (height) el.style.height = height;
       el.style.margin = '0';
       el.style.zIndex = '10';
+      const logoFrame = el.querySelector('.team-logo-frame');
+      if (logoFrame) {
+        logoFrame.style.width = Number.isFinite(pos.logoWidth) && pos.logoWidth > 0 ? `${pos.logoWidth * layoutScale}px` : '';
+        logoFrame.style.height = Number.isFinite(pos.logoHeight) && pos.logoHeight > 0 ? `${pos.logoHeight * layoutScale}px` : '';
+      }
     });
   } catch (_) {
     return false;
@@ -1831,9 +1947,11 @@ window.addEventListener('resize', () => {
   });
 });
 
-function resetLayout() {
-  try { localStorage.removeItem(STORAGE_KEYS.positions); } catch (_) {}
-  try { localStorage.removeItem(STORAGE_KEYS.fontSizes); } catch (_) {}
+function resetLayout(shouldPersist = true) {
+  if (shouldPersist) {
+    try { localStorage.removeItem(STORAGE_KEYS.positions); } catch (_) {}
+    try { localStorage.removeItem(STORAGE_KEYS.fontSizes); } catch (_) {}
+  }
 
   const scoreboard = document.getElementById('scoreboard');
   scoreboard.querySelectorAll('.draggable').forEach(el => {
@@ -1841,6 +1959,10 @@ function resetLayout() {
     el.style.cssText = '';
     const handle = el.querySelector('.resize-handle');
     if (handle) handle.remove();
+  });
+  scoreboard.querySelectorAll('.team-logo-frame').forEach((frame) => {
+    frame.style.width = '';
+    frame.style.height = '';
   });
 
   document.querySelectorAll('.size-adjustable').forEach(el => {
@@ -1854,7 +1976,7 @@ function resetLayout() {
   state.editMode = false;
   document.body.classList.remove('edit-mode');
   document.getElementById('edit-banner').classList.add('hidden');
-  persistRuntimeState();
+  if (shouldPersist) persistRuntimeState();
 }
 
 function loadDefaultLayout() {
@@ -1900,8 +2022,27 @@ function handleEditableResize(e) {
 // ─── HOTKEYS ──────────────────────────────────────────────────────────────────
 
 document.addEventListener('keydown', (e) => {
+  if (clockCorrectionOpen) {
+    if (e.code === 'Escape') {
+      e.preventDefault();
+      closeClockCorrection();
+    } else if (e.key === 'Tab') {
+      const focusable = Array.from(document.querySelectorAll('#clock-correction input, #clock-correction button'));
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    return;
+  }
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
 
+  if (state.awaitingAdvance && e.target.closest('#auto-advance-overlay button')) return;
   if (state.awaitingAdvance && (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyN')) {
     e.preventDefault();
     confirmAutoAdvance();
@@ -2125,23 +2266,45 @@ function exportGameSummary() {
   popup.document.close();
 }
 
+const logoUploadVersions = { home: 0, away: 0 };
+const pendingLogoUploads = new Set();
+
+function setLogoUploadState(team, pending, message) {
+  if (pending) pendingLogoUploads.add(team);
+  else pendingLogoUploads.delete(team);
+  document.getElementById(`${team}-logo-status`).textContent = message;
+  document.getElementById('apply-settings-btn').disabled = pendingLogoUploads.size > 0;
+}
+
 function loadLogoFromInput(team, file) {
   if (!file) return;
 
+  const version = ++logoUploadVersions[team];
   if (!file.type.startsWith('image/') || file.size > MAX_IMAGE_FILE_BYTES) {
+    setLogoUploadState(team, false, 'Team logo must be an image under 5 MB.');
+    document.getElementById(`input-${team}-logo`).value = '';
     updateStatus('Team logo must be an image under 5 MB');
     return;
   }
 
+  setLogoUploadState(team, true, 'Processing logo...');
   readImageForStorage(file, (dataUrl) => {
+    if (version !== logoUploadVersions[team]) return;
     state.teamLogos[team] = dataUrl;
     renderLogo(team);
+    setLogoUploadState(team, false, 'Logo ready.');
     addLog(`${teamLabel(team)} logo updated`);
     persistRuntimeState();
+  }, () => {
+    if (version !== logoUploadVersions[team]) return;
+    setLogoUploadState(team, false, 'Unable to load image. Choose a valid image.');
+    document.getElementById(`input-${team}-logo`).value = '';
   });
 }
 
 function removeLogo(team) {
+  logoUploadVersions[team]++;
+  setLogoUploadState(team, false, '');
   state.teamLogos[team] = '';
   renderLogo(team);
   const input = document.getElementById(`input-${team}-logo`);

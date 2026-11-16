@@ -94,7 +94,9 @@
 @layer components {
   .display-only #operator-toolbar,
   .display-only #modal,
-  .display-only #edit-banner {
+  .display-only #edit-banner,
+  .display-only .clock-correction-trigger,
+  .display-only #clock-correction {
     display: none !important;
   }
 
